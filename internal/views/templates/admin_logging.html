@@ -1,0 +1,43 @@
+{{define "content"}}
+{{$p := .}}
+<h1>{{t "admin.logging.title"}}</h1>
+<p class="muted section-intro">{{t "admin.logging.intro"}}</p>
+
+<form method="post" action="/admin/logging/retention">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <table>
+    <thead><tr><th>{{t "admin.logging.category"}}</th><th>{{t "admin.logging.count"}}</th><th>{{t "admin.logging.oldest"}}</th><th>{{t "admin.logging.keep_days"}}</th></tr></thead>
+    <tbody>
+    {{range .Data.Stats}}
+      <tr>
+        <td><strong>{{t (print "admin.logging.category." .Category)}}</strong><div class="muted small">{{t (print "admin.logging.category." .Category ".hint")}}</div></td>
+        <td>{{.Count}}</td>
+        <td>{{if .Count}}{{date .Oldest}}{{else}}–{{end}}</td>
+        <td><input type="number" name="days_{{.Category}}" value="{{.RetentionDays}}" min="0" max="36500" class="days-input" aria-label="{{t "admin.logging.keep_days"}}"></td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  <p class="hint">{{t "admin.logging.keep_hint"}}</p>
+  <div class="form-actions">
+    <button type="submit">{{t "common.save"}}</button>
+  </div>
+</form>
+
+<div class="panel spaced">
+  <h2>{{t "admin.logging.purge_title"}}</h2>
+  <p class="muted">{{t "admin.logging.purge_intro"}}</p>
+  <form method="post" action="/admin/logging/purge" class="stacked" data-confirm="{{t "admin.logging.purge_confirm"}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="before">{{t "admin.logging.before"}}</label>
+    <input type="date" id="before" name="before" value="{{.Data.Before}}" required class="date-input">
+    <label>{{t "admin.logging.categories"}}</label>
+    <div class="checks">
+      {{range .Data.Stats}}<label><input type="checkbox" name="category" value="{{.Category}}"> {{t (print "admin.logging.category." .Category)}}</label>{{end}}
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="danger">{{t "admin.logging.purge"}}</button>
+    </div>
+  </form>
+</div>
+{{end}}

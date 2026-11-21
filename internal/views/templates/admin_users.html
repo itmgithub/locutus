@@ -1,0 +1,62 @@
+{{define "content"}}
+<div class="page-header">
+  <h1>{{t "admin.users.title"}}</h1>
+  <a class="button" href="/admin/users/new">{{t "admin.users.new"}}</a>
+</div>
+<table>
+  <thead>
+    <tr>
+      <th>{{t "user.username"}}</th>
+      <th>{{t "user.display_name"}}</th>
+      <th>{{t "user.source"}}</th>
+      <th>{{t "user.last_login"}}</th>
+      <th>{{t "user.role"}}</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {{$p := .}}
+  {{range .Data.Users}}
+    <tr>
+      <td>{{.Username}}{{if .Email}}<div class="muted small">{{.Email}}</div>{{end}}</td>
+      <td>{{.DisplayName}}</td>
+      <td>{{if .IsLocal}}{{t "user.source.local"}}{{else}}{{.ProviderName}} ({{t (print "provider.type." .ProviderType)}}){{end}}</td>
+      <td>{{date .LastLoginAt}}</td>
+      <td>
+        <form method="post" action="/admin/users/{{.ID}}/role" class="inline-form">
+          <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+          {{$role := .Role}}
+          <select name="role" aria-label="{{t "user.role"}}">
+            <option value="" {{if eq $role ""}}selected{{end}}>{{t "role."}}</option>
+            {{range $p.Data.Roles}}<option value="{{.}}" {{if eq $role .}}selected{{end}}>{{t (print "role." .)}}</option>{{end}}
+          </select>
+          <button type="submit" class="secondary">{{t "common.save"}}</button>
+        </form>
+      </td>
+      <td class="actions">
+        {{if .IsLocal}}
+        <details class="inline-details">
+          <summary class="button small secondary">{{t "admin.users.set_password"}}</summary>
+          <form method="post" action="/admin/users/{{.ID}}/password" class="inline-form">
+            <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+            <input type="password" name="password" required minlength="10" autocomplete="new-password" aria-label="{{t "user.password"}}" placeholder="{{t "user.password"}}">
+            <button type="submit" class="secondary">{{t "common.save"}}</button>
+          </form>
+        </details>
+        {{end}}
+        {{if ne .ID $p.User.ID}}
+          {{template "delete-button" dict "Action" (print "/admin/users/" .ID "/delete") "CSRF" $p.CSRF "Label" (t "common.delete") "Confirm" (t "admin.users.confirm_delete" .Username)}}
+        {{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+<div class="panel spaced">
+  <h2>{{t "admin.users.roles_title"}}</h2>
+  <dl class="roles">
+    {{range .Data.Roles}}<dt><span class="badge role-{{.}}">{{t (print "role." .)}}</span></dt><dd>{{t (print "role." . ".description")}}</dd>{{end}}
+  </dl>
+  <p class="muted">{{t "admin.users.role_hint"}}</p>
+</div>
+{{end}}

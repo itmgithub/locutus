@@ -1,0 +1,15 @@
+{{define "content"}}
+<div class="panel narrow">
+  <h1>{{t "account.title"}}</h1>
+  <form method="post" action="/account" class="stacked">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="current">{{t "account.current_password"}}</label>
+    <input type="password" id="current" name="current" required autocomplete="current-password">
+    <label for="password">{{t "account.new_password"}} <span class="hint">{{t "user.password_hint"}}</span></label>
+    <input type="password" id="password" name="password" required autocomplete="new-password">
+    <label for="password2">{{t "user.password_repeat"}}</label>
+    <input type="password" id="password2" name="password2" required autocomplete="new-password">
+    <div class="form-actions"><button type="submit">{{t "account.submit"}}</button></div>
+  </form>
+</div>
+{{end}}

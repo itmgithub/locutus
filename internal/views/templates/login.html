@@ -1,0 +1,21 @@
+{{define "content"}}
+<div class="panel narrow">
+  <h1>{{t "login.title"}}</h1>
+  <form method="post" action="/login" class="stacked">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="username">{{t "user.username"}}</label>
+    <input type="text" id="username" name="username" value="{{.Data.Username}}" required autofocus autocomplete="username">
+    <label for="password">{{t "user.password"}}</label>
+    <input type="password" id="password" name="password" required autocomplete="current-password">
+    <div class="form-actions"><button type="submit">{{t "login.submit"}}</button></div>
+  </form>
+  {{if .Data.Providers}}
+  <p class="divider">{{t "login.or"}}</p>
+  <div class="provider-buttons">
+    {{range .Data.Providers}}
+    <a class="button" href="/auth/{{.Type}}/{{.ID}}/login">{{t "login.with" .Name}}</a>
+    {{end}}
+  </div>
+  {{end}}
+</div>
+{{end}}

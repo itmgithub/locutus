@@ -1,0 +1,44 @@
+{{define "content"}}
+{{$d := .Data}}
+{{$pl := .Data.Plan}}
+<p class="crumbs"><a href="/systems">{{t "systems.title"}}</a> › <a href="/systems/{{$d.System.ID}}">{{$d.System.Name}}</a> ›</p>
+<div class="page-header">
+  <h1>{{t "plan.backup_title" $d.System.Name}}</h1>
+  <a class="button secondary" href="/systems/{{$d.System.ID}}/schedule/prune">{{t "plan.to_prune"}}</a>
+</div>
+{{if $pl.UpdatedBy}}<p class="muted section-intro">{{t "plan.updated" $pl.UpdatedBy (date $pl.UpdatedAt)}}</p>{{end}}
+
+<form method="post" action="/systems/{{$d.System.ID}}/schedule/backup" class="stacked">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+  <div class="panel">
+    <h2>{{t "plan.what"}}</h2>
+      <label for="paths">{{t "plan.paths"}} <span class="hint">{{t "plan.paths_hint"}}</span></label>
+      <textarea id="paths" name="paths" rows="5" class="mono" placeholder="/etc&#10;/home&#10;/var/www">{{join $pl.Paths "\n"}}</textarea>
+      <label for="excludes">{{t "plan.excludes"}} <span class="hint">{{t "plan.excludes_hint"}}</span></label>
+      <textarea id="excludes" name="excludes" rows="4" class="mono" placeholder="/home/*/.cache&#10;*.tmp">{{join $pl.Excludes "\n"}}</textarea>
+    <div class="row-2">
+      <div>
+        <label for="compression">{{t "plan.compression"}}</label>
+        <select id="compression" name="compression">
+          {{range $d.Compressions}}<option value="{{.}}" {{if eq . $pl.Compression}}selected{{end}}>{{.}}</option>{{end}}
+        </select>
+      </div>
+      <div>
+        <label class="check spaced-check"><input type="checkbox" name="one_file_system" value="1" {{if $pl.OneFileSystem}}checked{{end}}> {{t "plan.one_file_system"}}</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>{{t "plan.when_backup"}}</h2>
+    <label class="check"><input type="checkbox" name="enabled" value="1" {{if $pl.Enabled}}checked{{end}}> {{t "plan.enabled"}}</label>
+    {{template "schedule-editor" $d.Schedule}}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit">{{t "common.save"}}</button>
+    <a class="button secondary" href="/systems/{{$d.System.ID}}">{{t "common.cancel"}}</a>
+  </div>
+</form>
+{{end}}

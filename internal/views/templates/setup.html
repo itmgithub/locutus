@@ -1,0 +1,20 @@
+{{define "content"}}
+<div class="panel narrow">
+  <h1>{{t "setup.title"}}</h1>
+  <p class="muted">{{t "setup.intro"}}</p>
+  <form method="post" action="/setup" class="stacked">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="username">{{t "user.username"}}</label>
+    <input type="text" id="username" name="username" value="{{.Data.Username}}" required autofocus autocomplete="username">
+    <label for="display_name">{{t "user.display_name"}}</label>
+    <input type="text" id="display_name" name="display_name" value="{{.Data.DisplayName}}">
+    <label for="email">{{t "user.email"}}</label>
+    <input type="email" id="email" name="email" value="{{.Data.Email}}">
+    <label for="password">{{t "user.password"}} <span class="hint">{{t "user.password_hint"}}</span></label>
+    <input type="password" id="password" name="password" required autocomplete="new-password">
+    <label for="password2">{{t "user.password_repeat"}}</label>
+    <input type="password" id="password2" name="password2" required autocomplete="new-password">
+    <div class="form-actions"><button type="submit">{{t "setup.submit"}}</button></div>
+  </form>
+</div>
+{{end}}

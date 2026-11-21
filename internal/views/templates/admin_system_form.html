@@ -1,0 +1,175 @@
+{{define "content"}}
+{{$d := .Data}}
+{{$s := .Data.System}}
+{{$p := .}}
+<p class="crumbs"><a href="/admin/systems">{{t "admin.systems.title"}}</a> ›</p>
+<div class="page-header">
+  <h1>{{if $s.ID}}{{$s.Name}} <span class="badge">{{t (print "system.kind." $s.Kind)}}</span>{{else}}{{t (print "admin.systems.new_" $s.Kind)}}{{end}}</h1>
+  {{if $s.ID}}
+  <form method="post" action="/admin/systems/{{$s.ID}}/test" class="inline" data-busy="{{t "admin.systems.testing"}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="secondary">{{t "admin.systems.test"}}</button>
+  </form>
+  {{end}}
+</div>
+
+{{if $d.Tested}}
+<div class="panel test-result {{if $d.TestOK}}ok{{else}}failed{{end}}">
+  <h2>{{if $d.TestOK}}{{t "admin.systems.test_ok"}}{{else}}{{t "admin.systems.test_failed"}}{{end}}</h2>
+  {{if $d.TestOutput}}<pre class="code">{{$d.TestOutput}}</pre>{{end}}
+</div>
+{{end}}
+
+<div class="grid-2">
+<div class="panel">
+  <h2>{{t "admin.systems.settings"}}</h2>
+  <form method="post" action="{{if $s.ID}}/admin/systems/{{$s.ID}}/edit{{else}}/admin/systems/{{$s.Kind}}/new{{end}}" class="stacked" autocomplete="off">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="name">{{t "system.name"}}</label>
+    <input type="text" id="name" name="name" value="{{$s.Name}}" required>
+    {{if and $s.IsClient $s.ArchivePrefix}}<p class="hint">{{t "system.archive_prefix_hint" $s.ArchivePrefix}}</p>{{end}}
+    <label for="description">{{t "common.description"}}</label>
+    <input type="text" id="description" name="description" value="{{$s.Description}}">
+
+    <label for="location">{{t "system.location"}}</label>
+    <select id="location" name="location">
+      <option value="remote" {{if eq $s.Location "remote"}}selected{{end}}>{{t (print "system.location.remote." $s.Kind)}}</option>
+      <option value="local" {{if eq $s.Location "local"}}selected{{end}}>{{t (print "system.location.local." $s.Kind)}}</option>
+    </select>
+
+    {{if $s.IsClient}}
+      <label for="repository_id">{{t "system.repository"}}</label>
+      <select id="repository_id" name="repository_id" required>
+        <option value="">–</option>
+        {{range $d.Repositories}}<option value="{{.ID}}" {{if eq .ID $s.RepositoryID}}selected{{end}}>{{.Name}} ({{t (print "system.location." .Location)}})</option>{{end}}
+      </select>
+      <p class="hint">{{t "system.repository_hint"}}</p>
+    {{else}}
+      <label for="repo_path">{{t "system.repo_path"}}</label>
+      <input type="text" id="repo_path" name="repo_path" value="{{$s.RepoPath}}" required placeholder="/srv/borg/repo">
+      <p class="hint" data-show-when="location=remote">{{t "system.repo_path_hint_remote"}}</p>
+      <p class="hint" data-show-when="location=local">{{t "system.repo_path_hint_local"}}</p>
+      <label for="borg_version">{{t "system.borg_version"}}</label>
+      <select id="borg_version" name="borg_version">
+        {{range $d.BorgVersions}}<option value="{{.}}" {{if eq . $s.BorgVersion}}selected{{end}}>Borg {{.}}.x</option>{{end}}
+      </select>
+    {{end}}
+
+    <div data-show-when="location=remote">
+      <div class="row-3">
+        <div>
+          <label for="host">{{t "system.host"}}</label>
+          <input type="text" id="host" name="host" value="{{$s.Host}}" placeholder="backup.example.com">
+        </div>
+        <div>
+          <label for="port">{{t "system.port"}}</label>
+          <input type="number" id="port" name="port" value="{{$s.Port}}" min="1" max="65535">
+        </div>
+        <div>
+          <label for="ssh_user">{{t "system.ssh_user"}}</label>
+          <input type="text" id="ssh_user" name="ssh_user" value="{{$s.SSHUser}}" placeholder="borg">
+        </div>
+      </div>
+      <label for="ssh_key">{{t "system.ssh_key"}} <span class="hint">{{if $s.HasSSHKey}}{{t "system.secret_keep"}}{{else}}{{t "system.ssh_key_hint"}}{{end}}</span></label>
+      <textarea id="ssh_key" name="ssh_key" rows="4" class="mono" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" spellcheck="false"></textarea>
+      {{if $s.HasSSHKey}}<label class="check"><input type="checkbox" name="remove_ssh_key" value="1"> {{t "system.ssh_key_remove"}}</label>{{end}}
+      {{if $s.IsClient}}
+      <label class="check spaced-check"><input type="checkbox" name="use_sudo" value="1" {{if $s.UseSudo}}checked{{end}}> {{t "system.use_sudo"}}</label>
+      <p class="hint">{{t "system.use_sudo_hint"}}</p>
+      {{end}}
+      {{if $s.IsRepository}}
+      <label for="prune_ssh_key">{{t "system.prune_ssh_key"}} <span class="hint">{{if $s.HasPruneKey}}{{t "system.secret_keep"}}{{else}}{{t "system.prune_ssh_key_hint"}}{{end}}</span></label>
+      <textarea id="prune_ssh_key" name="prune_ssh_key" rows="4" class="mono" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" spellcheck="false"></textarea>
+      <p class="hint">{{t "system.prune_ssh_key_help"}}</p>
+      {{if $s.HasPruneKey}}<label class="check"><input type="checkbox" name="remove_prune_ssh_key" value="1"> {{t "system.prune_ssh_key_remove"}}</label>{{end}}
+      {{end}}
+    </div>
+
+    {{if $s.IsRepository}}
+      <label for="passphrase">{{t "system.passphrase"}} <span class="hint">{{if $s.HasPassphrase}}{{t "system.secret_keep"}}{{else}}{{t "system.passphrase_hint"}}{{end}}</span></label>
+      <input type="password" id="passphrase" name="passphrase" autocomplete="new-password">
+      {{if $s.HasPassphrase}}<label class="check"><input type="checkbox" name="remove_passphrase" value="1"> {{t "system.passphrase_remove"}}</label>{{end}}
+    {{end}}
+    <p class="hint">{{t "system.secrets_hint"}}</p>
+
+    <div class="form-actions">
+      <button type="submit">{{t "common.save"}}</button>
+      <a class="button secondary" href="/admin/systems">{{t "common.cancel"}}</a>
+    </div>
+  </form>
+</div>
+
+{{if $s.ID}}
+<div>
+  {{if $s.IsRemote}}
+  <div class="panel" id="ssh">
+    <h2>{{t "system.ssh_public_key"}}</h2>
+    {{if $d.PublicKey}}
+      <p class="muted">{{if $s.IsRepository}}{{t "system.public_key_repo_hint"}}{{else}}{{t "system.public_key_client_hint"}}{{end}}</p>
+      <pre class="code wrap">{{$d.PublicKey}}</pre>
+      <p class="muted small">{{$d.Fingerprint}}</p>
+    {{else}}
+      <p class="muted">{{t "system.no_ssh_key"}}</p>
+    {{end}}
+    <form method="post" action="/admin/systems/{{$s.ID}}/genkey" {{if $s.HasSSHKey}}data-confirm="{{t "system.genkey_confirm"}}"{{end}}>
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit" class="secondary">{{t "system.genkey"}}</button>
+    </form>
+    <p class="muted small">{{t "system.known_hosts_hint" $d.KnownHostsFile}}</p>
+  </div>
+  {{if $s.IsRepository}}
+  <div class="panel" id="prune-key">
+    <h2>{{t "system.prune_public_key"}}</h2>
+    {{if $d.PrunePublicKey}}
+      <p class="muted">{{t "system.prune_public_key_hint"}}</p>
+      <pre class="code wrap">{{$d.PrunePublicKey}}</pre>
+      <p class="muted small">{{$d.PruneFinger}}</p>
+    {{else}}
+      <p class="muted">{{t "system.no_prune_key"}}</p>
+    {{end}}
+    <form method="post" action="/admin/systems/{{$s.ID}}/genkey" {{if $s.HasPruneKey}}data-confirm="{{t "system.genkey_prune_confirm"}}"{{end}}>
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="key" value="prune">
+      <button type="submit" class="secondary">{{t "system.genkey_prune"}}</button>
+    </form>
+  </div>
+  {{end}}
+  {{end}}
+
+  {{if $s.IsRepository}}
+  <div class="panel">
+    <h2>{{t "admin.systems.init_title"}}</h2>
+    <p class="muted">{{t "admin.systems.init_hint"}}</p>
+    <form method="post" action="/admin/systems/{{$s.ID}}/init" class="inline-form" data-confirm="{{t "admin.systems.init_confirm"}}" data-busy="{{t "admin.systems.initialising"}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <select name="encryption" aria-label="{{t "admin.systems.encryption"}}">
+        {{range $d.EncryptionModes}}<option value="{{.}}">{{.}}</option>{{end}}
+      </select>
+      <button type="submit" class="secondary">{{t "admin.systems.init"}}</button>
+    </form>
+    {{if $d.ClientCount}}<p class="muted small">{{t "admin.systems.client_count" $d.ClientCount}}</p>{{end}}
+  </div>
+  {{end}}
+
+  <div class="panel" id="users">
+    <h2>{{t "admin.systems.users"}}</h2>
+    <p class="muted">{{t "admin.systems.users_hint"}}</p>
+    {{if $d.Users}}
+    <form method="post" action="/admin/systems/{{$s.ID}}/users">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <div class="checks">
+        {{range $d.Users}}
+        <label><input type="checkbox" name="user" value="{{.ID}}" {{if hasID $d.AssignedIDs .ID}}checked{{end}}>
+          {{.Name}} {{if .Role}}<span class="badge role-{{.Role}}">{{t (print "role." .Role)}}</span>{{else}}<span class="badge">{{t "role."}}</span>{{end}}</label>
+        {{end}}
+      </div>
+      <div class="form-actions"><button type="submit">{{t "common.save"}}</button></div>
+    </form>
+    {{else}}
+    <p class="muted">{{t "admin.systems.no_users"}}</p>
+    {{end}}
+  </div>
+</div>
+{{end}}
+</div>
+{{end}}

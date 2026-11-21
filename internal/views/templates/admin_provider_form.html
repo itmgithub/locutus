@@ -1,0 +1,47 @@
+{{define "content"}}
+{{$pr := .Data.Provider}}
+<div class="panel medium">
+  <h1>{{if $pr.ID}}{{t "admin.providers.edit" $pr.Name}}{{else}}{{t (print "admin.providers.new_" $pr.Type)}}{{end}}</h1>
+  <form method="post" action="{{if $pr.ID}}/admin/providers/{{$pr.ID}}/edit{{else}}/admin/providers/{{$pr.Type}}/new{{end}}" class="stacked">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="name">{{t "provider.name"}} <span class="hint">{{t "provider.name_hint"}}</span></label>
+    <input type="text" id="name" name="name" value="{{$pr.Name}}" required>
+    <label><input type="checkbox" name="enabled" value="1" {{if $pr.Enabled}}checked{{end}}> {{t "provider.enabled"}}</label>
+
+    <label>{{t "provider.callback_url"}}</label>
+    <pre class="code">{{.Data.CallbackURL}}</pre>
+
+    {{if eq $pr.Type "oidc"}}
+      <label for="issuer_url">{{t "provider.oidc.issuer_url"}}</label>
+      <input type="url" id="issuer_url" name="issuer_url" value="{{$pr.OIDC.IssuerURL}}" required placeholder="https://login.example.com/realms/main">
+      <label for="client_id">{{t "provider.oidc.client_id"}}</label>
+      <input type="text" id="client_id" name="client_id" value="{{$pr.OIDC.ClientID}}" required>
+      <label for="client_secret">{{t "provider.oidc.client_secret"}} {{if $pr.ID}}<span class="hint">{{t "provider.oidc.client_secret_keep"}}</span>{{end}}</label>
+      <input type="password" id="client_secret" name="client_secret" autocomplete="off">
+      <label for="scopes">{{t "provider.oidc.scopes"}}</label>
+      <input type="text" id="scopes" name="scopes" value="{{$pr.OIDC.Scopes}}">
+      <label for="username_claim">{{t "provider.oidc.username_claim"}}</label>
+      <input type="text" id="username_claim" name="username_claim" value="{{$pr.OIDC.UsernameClaim}}" placeholder="preferred_username">
+    {{else}}
+      <label>{{t "provider.saml.sp_metadata"}}</label>
+      {{if $pr.ID}}
+        <p><a href="{{.Data.MetadataURL}}" target="_blank">{{.Data.MetadataURL}}</a></p>
+      {{else}}
+        <p class="muted">{{t "provider.saml.sp_metadata_after_save"}}</p>
+      {{end}}
+      <label for="idp_metadata_url">{{t "provider.saml.idp_metadata_url"}}</label>
+      <input type="url" id="idp_metadata_url" name="idp_metadata_url" value="{{$pr.SAML.IDPMetadataURL}}">
+      <label for="idp_metadata_xml">{{t "provider.saml.idp_metadata_xml"}} <span class="hint">{{t "provider.saml.idp_metadata_xml_hint"}}</span></label>
+      <textarea id="idp_metadata_xml" name="idp_metadata_xml" rows="6">{{$pr.SAML.IDPMetadataXML}}</textarea>
+      <label for="entity_id">{{t "provider.saml.entity_id"}} <span class="hint">{{t "provider.saml.entity_id_hint"}}</span></label>
+      <input type="text" id="entity_id" name="entity_id" value="{{$pr.SAML.EntityID}}">
+      <label for="username_attribute">{{t "provider.saml.username_attribute"}} <span class="hint">{{t "provider.saml.username_attribute_hint"}}</span></label>
+      <input type="text" id="username_attribute" name="username_attribute" value="{{$pr.SAML.UsernameAttribute}}">
+    {{end}}
+    <div class="form-actions">
+      <button type="submit">{{t "common.save"}}</button>
+      <a class="button secondary" href="/admin/providers">{{t "common.cancel"}}</a>
+    </div>
+  </form>
+</div>
+{{end}}

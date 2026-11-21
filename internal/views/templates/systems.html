@@ -1,0 +1,31 @@
+{{define "content"}}
+<h1>{{t "systems.title"}}</h1>
+{{if .Data}}
+<p class="muted section-intro">{{t "systems.intro"}}</p>
+<div class="cards">
+  {{range .Data}}
+  {{$s := .System}}
+  <a class="card link-card" href="/systems/{{$s.ID}}">
+    <h3>{{$s.Name}}</h3>
+    <div class="meta">
+      <span class="badge">{{t (print "system.kind." $s.Kind)}}</span>
+      <span class="badge">{{t (print "system.location." $s.Location)}}</span>
+    </div>
+    {{if $s.Description}}<p class="muted">{{$s.Description}}</p>{{end}}
+    {{if $s.IsClient}}
+      <div class="meta">
+        {{t "systems.last_backup"}}:
+        {{with .LastBackup}}{{template "status" .Status}} {{date .StartedAt}}{{else}}<span class="muted">{{t "systems.no_log"}}</span>{{end}}
+      </div>
+      <div class="meta">
+        {{t "systems.next_backup"}}:
+        {{if and .Plan .Plan.Enabled}}{{date .Plan.NextBackupAt}}{{else}}<span class="muted">{{t "systems.not_scheduled"}}</span>{{end}}
+      </div>
+    {{end}}
+  </a>
+  {{end}}
+</div>
+{{else}}
+<div class="panel"><p class="muted">{{t "systems.none"}}</p></div>
+{{end}}
+{{end}}

@@ -1,0 +1,37 @@
+{{define "content"}}
+{{$d := .Data}}
+{{$pl := .Data.Plan}}
+<p class="crumbs"><a href="/systems">{{t "systems.title"}}</a> › <a href="/systems/{{$d.System.ID}}">{{$d.System.Name}}</a> ›</p>
+<div class="page-header">
+  <h1>{{t "plan.prune_title" $d.System.Name}}</h1>
+  <a class="button secondary" href="/systems/{{$d.System.ID}}/schedule/backup">{{t "plan.to_backup"}}</a>
+</div>
+<p class="muted section-intro">{{t "plan.prune_hint"}}</p>
+
+<form method="post" action="/systems/{{$d.System.ID}}/schedule/prune" class="stacked">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+
+  <div class="panel">
+    <h2>{{t "plan.retention_title"}}</h2>
+    <p class="hint">{{t "plan.retention_hint"}}</p>
+    <div class="keep-grid">
+      <div><label for="keep_hourly">{{t "plan.keep_hourly"}}</label><input type="number" id="keep_hourly" name="keep_hourly" min="0" value="{{$pl.KeepHourly}}"></div>
+      <div><label for="keep_daily">{{t "plan.keep_daily"}}</label><input type="number" id="keep_daily" name="keep_daily" min="0" value="{{$pl.KeepDaily}}"></div>
+      <div><label for="keep_weekly">{{t "plan.keep_weekly"}}</label><input type="number" id="keep_weekly" name="keep_weekly" min="0" value="{{$pl.KeepWeekly}}"></div>
+      <div><label for="keep_monthly">{{t "plan.keep_monthly"}}</label><input type="number" id="keep_monthly" name="keep_monthly" min="0" value="{{$pl.KeepMonthly}}"></div>
+      <div><label for="keep_yearly">{{t "plan.keep_yearly"}}</label><input type="number" id="keep_yearly" name="keep_yearly" min="0" value="{{$pl.KeepYearly}}"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>{{t "plan.when_prune"}}</h2>
+    <label class="check"><input type="checkbox" name="prune_enabled" value="1" {{if $pl.PruneEnabled}}checked{{end}}> {{t "plan.prune_enabled"}}</label>
+    {{template "schedule-editor" $d.Schedule}}
+  </div>
+
+  <div class="form-actions">
+    <button type="submit">{{t "common.save"}}</button>
+    <a class="button secondary" href="/systems/{{$d.System.ID}}">{{t "common.cancel"}}</a>
+  </div>
+</form>
+{{end}}

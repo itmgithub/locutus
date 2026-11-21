@@ -1,0 +1,60 @@
+{{define "content"}}
+{{$p := .}}
+<div class="page-header">
+  <h1>{{t "admin.systems.title"}}</h1>
+  <div class="form-actions flush">
+    <a class="button" href="/admin/systems/repository/new">{{t "admin.systems.new_repository"}}</a>
+    <a class="button" href="/admin/systems/client/new">{{t "admin.systems.new_client"}}</a>
+  </div>
+</div>
+<p class="muted section-intro">{{t "admin.systems.intro"}}</p>
+
+<h2>{{t "admin.systems.repositories"}}</h2>
+{{if .Data.Repositories}}
+<table>
+  <thead><tr><th>{{t "system.name"}}</th><th>{{t "system.location"}}</th><th>{{t "system.repository_location"}}</th><th>{{t "system.secrets"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.Repositories}}
+    <tr>
+      <td><a href="/admin/systems/{{.ID}}/edit">{{.Name}}</a>{{if .Description}}<div class="muted small">{{.Description}}</div>{{end}}</td>
+      <td>{{t (print "system.location." .Location)}}</td>
+      <td><code>{{.RepoLocation}}</code></td>
+      <td>
+        {{if .IsRemote}}<span class="badge {{if .HasSSHKey}}ok{{else}}missing{{end}}">{{t "system.ssh_key"}}</span>{{end}}
+        <span class="badge {{if .HasPassphrase}}ok{{end}}">{{t "system.passphrase"}}</span>
+      </td>
+      <td class="actions">
+        <a class="button small secondary" href="/admin/systems/{{.ID}}/edit">{{t "common.edit"}}</a>
+        {{template "delete-button" dict "Action" (print "/admin/systems/" .ID "/delete") "CSRF" $p.CSRF "Label" (t "common.delete") "Confirm" (t "admin.systems.confirm_delete" .Name)}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="panel"><p class="muted">{{t "admin.systems.no_repositories"}}</p></div>
+{{end}}
+
+<h2>{{t "admin.systems.clients"}}</h2>
+{{if .Data.Clients}}
+<table>
+  <thead><tr><th>{{t "system.name"}}</th><th>{{t "system.location"}}</th><th>{{t "system.host"}}</th><th>{{t "system.repository"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range .Data.Clients}}
+    <tr>
+      <td><a href="/admin/systems/{{.ID}}/edit">{{.Name}}</a>{{if .Description}}<div class="muted small">{{.Description}}</div>{{end}}</td>
+      <td>{{t (print "system.location." .Location)}}</td>
+      <td>{{if .IsRemote}}<code>{{.SSHUser}}@{{.SSHAddress}}</code> <span class="badge {{if .HasSSHKey}}ok{{else}}missing{{end}}">{{t "system.ssh_key"}}</span>{{if .UseSudo}} <span class="badge">sudo</span>{{end}}{{else}}<span class="muted">{{t "system.container"}}</span>{{end}}</td>
+      <td>{{index $p.Data.RepoNames .RepositoryID}}</td>
+      <td class="actions">
+        <a class="button small secondary" href="/admin/systems/{{.ID}}/edit">{{t "common.edit"}}</a>
+        {{template "delete-button" dict "Action" (print "/admin/systems/" .ID "/delete") "CSRF" $p.CSRF "Label" (t "common.delete") "Confirm" (t "admin.systems.confirm_delete" .Name)}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="panel"><p class="muted">{{t "admin.systems.no_clients"}}</p></div>
+{{end}}
+{{end}}

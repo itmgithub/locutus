@@ -1,0 +1,32 @@
+{{define "content"}}
+<div class="page-header">
+  <h1>{{t "admin.providers.title"}}</h1>
+  <div class="form-actions flush">
+    <a class="button" href="/admin/providers/oidc/new">{{t "admin.providers.new_oidc"}}</a>
+    <a class="button" href="/admin/providers/saml/new">{{t "admin.providers.new_saml"}}</a>
+  </div>
+</div>
+{{if .Data}}
+<table>
+  <thead>
+    <tr><th>{{t "provider.name"}}</th><th>{{t "provider.type"}}</th><th>{{t "provider.status"}}</th><th></th></tr>
+  </thead>
+  <tbody>
+  {{$p := .}}
+  {{range .Data}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td>{{t (print "provider.type." .Type)}}</td>
+      <td>{{if .Enabled}}{{t "provider.enabled"}}{{else}}{{t "provider.disabled"}}{{end}}</td>
+      <td class="actions">
+        <a class="button small secondary" href="/admin/providers/{{.ID}}/edit">{{t "common.edit"}}</a>
+        {{template "delete-button" dict "Action" (print "/admin/providers/" .ID "/delete") "CSRF" $p.CSRF "Label" (t "common.delete") "Confirm" (t "admin.providers.confirm_delete" .Name)}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="panel"><p class="muted">{{t "admin.providers.none"}}</p></div>
+{{end}}
+{{end}}

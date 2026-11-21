@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="{{.Lang}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .Title}}{{.Title}} – {{end}}Locutus</title>
+<link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="/"><img src="/static/favicon.svg" alt="" width="22" height="22"> Locutus</a>
+  <nav>
+    {{if .User}}
+      {{if eq .User.Role "admin"}}
+        <a href="/admin/systems" {{if hasPrefix .Path "/admin/systems"}}class="active"{{end}}>{{t "nav.systems"}}</a>
+        <a href="/admin/users" {{if hasPrefix .Path "/admin/users"}}class="active"{{end}}>{{t "nav.users"}}</a>
+        <a href="/admin/providers" {{if hasPrefix .Path "/admin/providers"}}class="active"{{end}}>{{t "nav.providers"}}</a>
+        <a href="/admin/logging" {{if hasPrefix .Path "/admin/logging"}}class="active"{{end}}>{{t "nav.logging"}}</a>
+      {{else if .User.CanView}}
+        <a href="/systems" {{if hasPrefix .Path "/systems"}}class="active"{{end}}>{{t "nav.my_systems"}}</a>
+      {{end}}
+    {{end}}
+  </nav>
+  <div class="user">
+    {{if .User}}
+    <span>{{.User.Name}}{{if .User.Role}} <span class="badge role-{{.User.Role}}">{{t (print "role." .User.Role)}}</span>{{end}}</span>
+    {{end}}
+    <form method="post" action="/language" class="lang-form" data-autosubmit>
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="next" value="{{.Path}}">
+      <select name="lang" aria-label="{{t "nav.language"}}" title="{{t "nav.language"}}">
+        <option value="" {{if not .LangChoice}}selected{{end}}>{{t "nav.language_auto"}}</option>
+        {{range .Languages}}<option value="{{.Code}}" lang="{{.Code}}" {{if eq .Code $.LangChoice}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+      <button type="submit" class="header-button">{{t "common.ok"}}</button>
+    </form>
+    {{if .User}}
+    {{if .User.IsLocal}}<a class="header-button" href="/account">{{t "nav.account"}}</a>{{end}}
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit" class="header-button">{{t "nav.logout"}}</button>
+    </form>
+    {{end}}
+  </div>
+</header>
+<main>
+  {{with .Flash}}<div class="flash {{.Kind}}">{{.Message}}</div>{{end}}
+  {{if .Errors}}<div class="errors"><ul>{{range .Errors}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+  {{template "content" .}}
+</main>
+<footer>Locutus {{.Version}} (Build: {{.Build}}) · <em lang="la">Sero locutus, cito paenituit.</em></footer>
+</body>
+</html>

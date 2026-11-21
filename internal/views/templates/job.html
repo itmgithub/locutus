@@ -1,0 +1,24 @@
+{{define "content"}}
+{{$s := .Data.System}}
+{{$j := .Data.Job}}
+<p class="crumbs"><a href="/systems">{{t "systems.title"}}</a> › <a href="/systems/{{$s.ID}}">{{$s.Name}}</a> ›</p>
+<h1>{{t (print "job.kind." $j.Kind)}} – {{$j.SystemName}} {{template "status" $j.Status}}</h1>
+<div class="stats">
+  <div class="stat"><span class="label">{{t "job.started"}}</span><span class="value">{{datesec $j.StartedAt}}</span></div>
+  <div class="stat"><span class="label">{{t "job.finished"}}</span><span class="value">{{datesec $j.FinishedAt}}</span></div>
+  <div class="stat"><span class="label">{{t "job.duration"}}</span><span class="value">{{$j.Duration}}</span></div>
+  <div class="stat"><span class="label">{{t "job.trigger"}}</span><span class="value">{{t (print "job.trigger." $j.Trigger)}}{{if $j.Username}} ({{$j.Username}}){{end}}</span></div>
+  {{if $j.Archive}}<div class="stat"><span class="label">{{t "archive.name"}}</span><span class="value"><code>{{$j.Archive}}</code></span></div>{{end}}
+  {{if eq $j.Kind "restore"}}
+  <div class="stat"><span class="label">{{t "restore.target"}}</span><span class="value">{{if $j.LocalTarget}}{{t "restore.target_local"}}{{else}}{{$j.TargetName}}{{end}}</span></div>
+  <div class="stat"><span class="label">{{t "restore.destination"}}</span><span class="value"><code>{{$j.Destination}}</code></span></div>
+  <div class="stat"><span class="label">{{t "restore.options"}}</span><span class="value">{{if $j.DryRun}}{{t "restore.dry_run_badge"}}{{else}}{{t "restore.real_run"}}{{end}} · {{if $j.Overwrite}}{{t "restore.overwrite_yes"}}{{else}}{{t "restore.overwrite_no"}}{{end}}</span></div>
+  {{if not $j.DryRun}}<div class="stat"><span class="label">{{t "restore.size"}}</span><span class="value">{{bytes $j.Bytes}}</span></div>{{end}}
+  {{end}}
+</div>
+{{if eq $j.Status "running"}}
+  <p class="flash info" data-reload="5">{{t "job.running"}}</p>
+{{end}}
+<h2>{{if eq $j.Kind "restore"}}{{t "job.output_restore"}}{{else}}{{t "job.output"}}{{end}}</h2>
+<pre class="code log">{{if $j.Output}}{{$j.Output}}{{else}}{{t "job.no_output"}}{{end}}</pre>
+{{end}}

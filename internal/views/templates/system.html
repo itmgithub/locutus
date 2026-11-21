@@ -1,0 +1,118 @@
+{{define "content"}}
+{{$d := .Data}}
+{{$s := .Data.System}}
+{{$u := .User}}
+<p class="crumbs"><a href="/systems">{{t "systems.title"}}</a> ›</p>
+<div class="page-header">
+  <div>
+    <h1>{{$s.Name}} <span class="badge">{{t (print "system.kind." $s.Kind)}}</span></h1>
+    {{if $s.Description}}<p class="muted">{{$s.Description}}</p>{{end}}
+    {{if $s.IsClient}}<p class="muted small">{{t "system.backs_up_to"}} <strong>{{with $d.Repository}}{{.Name}}{{end}}</strong></p>{{end}}
+  </div>
+  {{if and $s.IsClient $u.CanBackup}}
+  <div class="form-actions flush">
+    <a class="button secondary" href="/systems/{{$s.ID}}/schedule/backup">{{t "system.backup_schedule"}}</a>
+    <a class="button secondary" href="/systems/{{$s.ID}}/schedule/prune">{{t "system.prune_schedule"}}</a>
+    <form method="post" action="/systems/{{$s.ID}}/run/backup" class="inline">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit" {{if $d.Running}}disabled{{end}}>{{t "system.backup_now"}}</button>
+    </form>
+    <form method="post" action="/systems/{{$s.ID}}/run/prune" class="inline" data-confirm="{{t "system.prune_confirm"}}">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit" class="secondary" {{if $d.Running}}disabled{{end}}>{{t "system.prune_now"}}</button>
+    </form>
+  </div>
+  {{end}}
+</div>
+
+{{if $d.Running}}<div class="flash info">{{t "system.job_running"}}</div>{{end}}
+
+{{with $d.Plan}}
+<div class="stats">
+  <div class="stat"><span class="label">{{t "system.backup_schedule"}}</span>
+    <span class="value">{{if .Enabled}}{{$d.BackupDesc}}<span class="muted small">{{t "systems.next"}} {{date .NextBackupAt}}</span>{{else}}{{t "systems.not_scheduled"}}{{end}}</span></div>
+  <div class="stat"><span class="label">{{t "system.prune_schedule"}}</span>
+    <span class="value">{{if .PruneEnabled}}{{$d.PruneDesc}}<span class="muted small">{{t "systems.next"}} {{date .NextPruneAt}}</span>{{else}}{{t "systems.not_scheduled"}}{{end}}</span></div>
+  <div class="stat"><span class="label">{{t "plan.retention"}}</span>
+    <span class="value">{{t "plan.retention_short" .KeepHourly .KeepDaily .KeepWeekly .KeepMonthly .KeepYearly}}</span></div>
+  <div class="stat"><span class="label">{{t "plan.paths"}}</span>
+    <span class="value">{{if .Paths}}{{join .Paths ", "}}{{else}}–{{end}}</span></div>
+</div>
+{{end}}
+
+<h2>{{t "system.archives"}}</h2>
+{{if $d.ArchiveErr}}
+  <div class="errors">{{t "system.archives_failed"}}<pre class="code">{{$d.ArchiveErr}}</pre></div>
+{{else if $d.Archives}}
+<table>
+  <thead><tr><th>{{t "archive.name"}}</th><th>{{t "archive.created"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range $d.Archives}}
+    <tr>
+      <td><code>{{.Name}}</code></td>
+      <td>{{weekday .Start}} {{datesec .Start}}</td>
+      <td class="actions"><a class="button small" href="/systems/{{$s.ID}}/archives/{{.Name}}">{{if $u.CanRestore}}{{t "archive.browse_restore"}}{{else}}{{t "archive.browse"}}{{end}}</a>
+        {{if and $s.IsClient $u.CanBackup}}
+        <form method="post" action="/systems/{{$s.ID}}/archives/{{.Name}}/delete" class="inline" data-confirm="{{t "archive.delete_confirm" .Name}}" data-busy="{{t "archive.deleting"}}">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <button type="submit" class="small danger" {{if $d.Running}}disabled{{end}}>{{t "archive.delete"}}</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="panel"><p class="muted">{{t "system.no_archives"}}</p></div>
+{{end}}
+
+<h2>{{t "system.jobs"}}</h2>
+<p class="muted small section-intro">{{t "system.jobs_hint"}} {{template "retention" dict "Retention" $d.Retention "Categories" (list "backup" "other")}}</p>
+{{if $d.Jobs}}
+<table>
+  <thead><tr><th>{{t "job.started"}}</th><th>{{t "job.kind"}}</th>{{if $s.IsRepository}}<th>{{t "job.system"}}</th>{{end}}<th>{{t "job.trigger"}}</th><th>{{t "job.status"}}</th><th>{{t "job.duration"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range $d.Jobs}}
+    <tr>
+      <td>{{date .StartedAt}}</td>
+      <td>{{t (print "job.kind." .Kind)}}</td>
+      {{if $s.IsRepository}}<td>{{.SystemName}}</td>{{end}}
+      <td>{{t (print "job.trigger." .Trigger)}}{{if .Username}} ({{.Username}}){{end}}</td>
+      <td>{{template "status" .Status}}</td>
+      <td>{{.Duration}}</td>
+      <td class="actions"><a class="button small secondary" href="/systems/{{$s.ID}}/jobs/{{.ID}}">{{t "job.details"}}</a></td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="panel"><p class="muted">{{t "system.no_jobs"}}</p></div>
+{{end}}
+
+<h2>{{t "system.restores"}}</h2>
+<p class="muted small section-intro">{{t "system.restores_hint"}} {{template "retention" dict "Retention" $d.Retention "Categories" (list "restore")}}</p>
+{{if $d.Restores}}
+<table>
+  <thead><tr><th>{{t "restore.date"}}</th><th>{{t "restore.user"}}</th><th>{{t "archive.name"}}</th><th>{{t "restore.paths"}}</th><th>{{t "restore.to"}}</th><th>{{t "restore.size"}}</th><th>{{t "job.status"}}</th><th></th></tr></thead>
+  <tbody>
+  {{range $d.Restores}}
+    <tr>
+      <td>{{date .CreatedAt}}</td>
+      <td>{{.Username}}</td>
+      <td><code>{{.Archive}}</code></td>
+      <td class="paths">{{range .Paths}}<div><code>/{{.}}</code></div>{{end}}</td>
+      <td>{{if .JobID}}{{if .LocalTarget}}{{t "restore.target_local"}}{{else}}{{.TargetName}}{{end}}: <code>{{.Destination}}</code>
+        {{if .DryRun}}<span class="badge">{{t "restore.dry_run_badge"}}</span>{{end}}{{if .Overwrite}}<span class="badge status-warning">{{t "restore.overwrite_badge"}}</span>{{end}}
+        {{else}}{{t "restore.download"}}{{end}}</td>
+      <td>{{bytes .Bytes}}</td>
+      <td>{{template "status" .Status}}</td>
+      <td class="actions">{{if .JobID}}<a class="button small secondary" href="/systems/{{$s.ID}}/jobs/{{.JobID}}">{{t "job.details"}}</a>{{end}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}
+<div class="panel"><p class="muted">{{t "system.no_restores"}}</p></div>
+{{end}}
+{{end}}

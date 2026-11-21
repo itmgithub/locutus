@@ -1,0 +1,41 @@
+# Gecompileerde binaries
+/locutus
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test output
+*.test
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Runtime data (database, uploads) — niet in git
+data/
+restore/
+certs/
+
+# Vendor directory (gebruik go modules)
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Claude Code artifacts
+.claude/
+CLAUDE.md
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker gerelateerd
+.dockerignore

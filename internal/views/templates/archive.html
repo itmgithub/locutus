@@ -1,0 +1,64 @@
+{{define "content"}}
+{{$d := .Data}}
+<p class="crumbs"><a href="/systems">{{t "systems.title"}}</a> › <a href="/systems/{{$d.System.ID}}">{{$d.System.Name}}</a> ›</p>
+<div class="page-header">
+  <h1><code>{{$d.Archive}}</code></h1>
+  {{if and $d.System.IsClient .User.CanBackup}}
+  <form method="post" action="/systems/{{$d.System.ID}}/archives/{{$d.Archive}}/delete" class="inline" data-confirm="{{t "archive.delete_confirm" $d.Archive}}" data-busy="{{t "archive.deleting"}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit" class="danger">{{t "archive.delete"}}</button>
+  </form>
+  {{end}}
+</div>
+<p class="muted section-intro">{{if .User.CanRestore}}{{t "archive.intro_restore"}}{{else}}{{t "archive.intro_view"}}{{end}}</p>
+
+<form method="post" action="/systems/{{$d.System.ID}}/archives/{{$d.Archive}}/download" id="restore-form">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="panel tree-panel">
+    <div class="tree"
+         data-tree-url="/systems/{{$d.System.ID}}/archives/{{$d.Archive}}/tree"
+         data-selectable="{{if .User.CanRestore}}1{{end}}"
+         data-loading="{{t "archive.loading"}}"
+         data-empty="{{t "archive.empty"}}">
+      <p class="muted">{{t "archive.loading"}}</p>
+    </div>
+  </div>
+  {{if .User.CanRestore}}
+  <div class="form-actions sticky-actions">
+    <button type="submit" id="download-button" data-needs-selection disabled>{{t "archive.download"}}</button>
+    <span class="muted" id="selection-count" data-template="{{t "archive.selected"}}"></span>
+  </div>
+  <p class="muted small">{{t "archive.download_hint"}}</p>
+
+  <div class="panel restore-panel">
+    <h2>{{t "restore.title"}}</h2>
+    <p class="muted">{{t "restore.intro"}}</p>
+    <div class="row-2">
+      <div>
+        <label for="restore-target">{{t "restore.target"}}</label>
+        <select id="restore-target" name="target">
+          <option value="0" {{if not $d.DefaultTarget}}selected{{end}}>{{t "restore.target_local"}}</option>
+          {{range $d.Targets}}<option value="{{.ID}}" {{if eq .ID $d.DefaultTarget}}selected{{end}}>{{.Name}}{{if not .IsRemote}} ({{t "restore.target_container"}}){{end}}</option>{{end}}
+        </select>
+      </div>
+      <div>
+        <label for="restore-destination">{{t "restore.destination"}}</label>
+        <input type="text" id="restore-destination" name="destination" class="mono" spellcheck="false" autocomplete="off" placeholder="/restore">
+      </div>
+    </div>
+    <p class="hint">{{t "restore.destination_hint"}}</p>
+    <div class="restore-options">
+      <label class="check"><input type="checkbox" id="restore-dry-run" name="dry_run" value="1" checked> {{t "restore.dry_run"}}</label>
+      <p class="hint">{{t "restore.dry_run_hint"}}</p>
+      <label class="check"><input type="checkbox" id="restore-overwrite" name="overwrite" value="1"> {{t "restore.overwrite"}}</label>
+      <p class="hint">{{t "restore.overwrite_hint"}}</p>
+    </div>
+    <div class="form-actions">
+      <button type="submit" id="restore-button" formaction="/systems/{{$d.System.ID}}/archives/{{$d.Archive}}/restore" data-needs-selection disabled
+        data-label-dry="{{t "restore.start_dry"}}" data-label-real="{{t "restore.start"}}"
+        data-confirm-overwrite="{{t "restore.confirm_overwrite"}}">{{t "restore.start_dry"}}</button>
+    </div>
+  </div>
+  {{end}}
+</form>
+{{end}}

@@ -1,0 +1,51 @@
+services:
+  locutus:
+    build:
+      context: .
+      # Optional: set the build number explicitly, default is the git commit.
+      #args:
+      #  BUILD: abcde
+    image: itmon.nl/locutus
+    container_name: locutus
+    ports:
+      - "3000:3000"
+    volumes:
+      # Host path where the data (SQLite database, secret key, SSH known_hosts,
+      # borg cache) is stored.
+      # Override with LOCUTUS_HOST_DATA_DIR, e.g. in a .env file next to this file.
+      - ${LOCUTUS_HOST_DATA_DIR:-./data}:/data
+      # Host path for restores into Locutus (use /restore as destination).
+      # Override with LOCUTUS_HOST_RESTORE_DIR.
+      - ${LOCUTUS_HOST_RESTORE_DIR:-./restore}:/restore
+      # Host path containing the TLS certificate and key (mounted read-only).
+      # Override with LOCUTUS_HOST_CERT_DIR.
+      - ${LOCUTUS_HOST_CERT_DIR:-./certs}:/certs:ro
+      # Local repositories: mount the directory and use its path in the container
+      # (e.g. /repos/myrepo) when creating a local repository system.
+      #- /srv/borg:/repos
+      # Local client: files of the Docker host that can be backed up as the
+      # "local" client (paths in the container, e.g. /host/etc).
+      #- /:/host:ro
+    environment:
+      - LOCUTUS_DATA_DIR=/data
+      #- LOCUTUS_DB_PATH=/data/locutus.db          # default: $LOCUTUS_DATA_DIR/locutus.db
+      - LOCUTUS_LISTEN_ADDR=:3000
+      # Time zone used for schedules and dates.
+      - TZ=Europe/Amsterdam
+      # HTTPS: set LOCUTUS_TLS_CERT and LOCUTUS_TLS_KEY to enable TLS. Without them plain HTTP is used.
+      #- LOCUTUS_TLS_CERT=/certs/locutus_cert.pem
+      #- LOCUTUS_TLS_KEY=/certs/locutus_key.pem
+      #- LOCUTUS_TLS_CA=/certs/cachain.pem           # optional intermediate chain
+      # External URL, used for the OIDC/SAML callback URLs (recommended behind a proxy).
+      #- LOCUTUS_BASE_URL=https://locutus.example.com
+      # Extra trusted CA or intermediate certificates (PEM) for outgoing HTTPS to
+      # OIDC/SAML identity providers: files and/or directories, separated by ":".
+      # E.g. put them in $LOCUTUS_HOST_CERT_DIR/ca/ on the host.
+      #- LOCUTUS_EXTRA_CA_CERTS=/certs/ca
+      # Default interface language when the browser asks for none of the
+      # available ones (en, nl). Users can choose their own language in the menu.
+      #- LOCUTUS_DEFAULT_LANGUAGE=en
+      # Key (32 bytes, base64) that encrypts SSH keys and passphrases in the
+      # database. Default: generated once in $LOCUTUS_DATA_DIR/secret.key.
+      #- LOCUTUS_SECRET_KEY=
+    restart: unless-stopped
