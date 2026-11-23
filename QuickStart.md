@@ -25,6 +25,13 @@ The client must be able to reach the backup server over SSH. Use the same major 
 (1.x) everywhere. Replace the host names, the IP address `192.0.2.10` (the address Locutus uses
 to reach the backup server) and `web1` with your own.
 
+> **Option: the Locutus client container.** If the backup server or the client runs Docker, for
+> example a server or a NAS, you can use the [Locutus client container](client/QuickStart.md)
+> instead of setting it up by hand. It sets up the user, the keys, the wrapper, sudo and sshd
+> itself, in the same way as this guide, with the configuration that Locutus pushes to it. It can be the
+> backup server, a client whose mounted directories are backed up, or both. Steps 3 and 4 below
+> say what to skip.
+
 ## 1. Install Locutus
 
 On the Locutus host, in the directory with the Locutus files:
@@ -41,7 +48,12 @@ On the Locutus host, in the directory with the Locutus files:
    docker compose up -d --build
    ```
 
-3. Open `https://<host>:3000` and create the administrator. Choose a long, unique password and
+   To build Locutus on another machine instead, for example for a Raspberry Pi, see
+   [Building for another machine](README.md#building-for-another-machine). Load the image file
+   with `docker load -i locutus-arm64.tar` and start with `docker compose up -d`, without
+   `--build`.
+
+3. Open `https://<host>:2224` and create the administrator. Choose a long, unique password and
    keep it in a password manager.
 
 Locutus now has a `secret.key` in `./data`. Without that file the SSH keys and passphrases stored
@@ -66,6 +78,10 @@ a restore can overwrite any file, including those in `/etc`.
 You assign the systems to these users in [step 6](#6-assign-the-systems).
 
 ## 3. Set up the backup server
+
+> **With the Locutus client container** as backup server: follow steps 1 and 2 of its
+> [QuickStart](client/QuickStart.md) instead of 3.1 to 3.4, with port `2223` and path
+> `/repos/web1`. Then continue here with step 4.
 
 ### 3.1 Create the borg user and a directory
 
@@ -126,6 +142,10 @@ Without the passphrase and this key you cannot get to your backups if Locutus is
 exported file from the backup server once it is stored safely.
 
 ## 4. Set up the client
+
+> **With the Locutus client container** as client: follow steps 1 and 3 of its
+> [QuickStart](client/QuickStart.md) instead of 4.1 to 4.7. Then continue here with step 5; the
+> paths to back up are the mounted directories, such as `/volumes/photos`.
 
 ### 4.1 Create the client in Locutus
 

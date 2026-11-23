@@ -121,3 +121,12 @@ func InstallDefault(pool *x509.CertPool) error {
 	t.TLSClientConfig = cfg
 	return nil
 }
+
+// DefaultRootCAs returns the trust store installed by InstallDefault, or nil
+// (the certificates of the system) when none was installed.
+func DefaultRootCAs() *x509.CertPool {
+	if t, ok := http.DefaultTransport.(*http.Transport); ok && t.TLSClientConfig != nil {
+		return t.TLSClientConfig.RootCAs
+	}
+	return nil
+}

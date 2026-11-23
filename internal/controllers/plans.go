@@ -212,6 +212,7 @@ type planData struct {
 	Plan         *models.BackupPlan
 	Schedule     scheduleEditor
 	Compressions []string
+	Notify       notifyField
 }
 
 func (a *App) renderPlan(w http.ResponseWriter, r *http.Request, status int, page string, s *models.System,
@@ -221,7 +222,7 @@ func (a *App) renderPlan(w http.ResponseWriter, r *http.Request, status int, pag
 		prefix, title = "prune", "plan.prune_title"
 	}
 	data := planData{System: s, Plan: p, Compressions: borg.CompressionModes,
-		Schedule: a.newScheduleEditor(r, s.ID, prefix, preset)}
+		Schedule: a.newScheduleEditor(r, s.ID, prefix, preset), Notify: a.notifyField(r)}
 	a.render(w, r, status, page, &views.Page{Title: a.t(r, title, s.Name), Data: data, Errors: errs})
 }
 
@@ -286,6 +287,15 @@ func (a *App) backupPlanSubmit(w http.ResponseWriter, r *http.Request) {
 	if !borg.ValidCompression(p.Compression) {
 		errs = append(errs, a.t(r, "error.compression_invalid"))
 	}
+	// Without a mail server the field is not shown and the address is kept.
+	if a.store.MailConfigured() {
+		if email, ok := a.notifyEmail(r); ok {
+			p.BackupEmail = email
+		} else {
+			p.BackupEmail = r.FormValue("notify_email")
+			errs = append(errs, a.t(r, "error.email_invalid"))
+		}
+	}
 	preset, expr, err := presetFromForm(r, "backup")
 	if err != nil {
 		errs = append(errs, a.t(r, "error.schedule_invalid"))
@@ -331,6 +341,14 @@ func (a *App) prunePlanSubmit(w http.ResponseWriter, r *http.Request) {
 	keep("keep_yearly", &p.KeepYearly)
 	if p.PruneEnabled && p.KeepHourly+p.KeepDaily+p.KeepWeekly+p.KeepMonthly+p.KeepYearly == 0 {
 		errs = append(errs, a.t(r, "error.keep_required"))
+	}
+	if a.store.MailConfigured() {
+		if email, ok := a.notifyEmail(r); ok {
+			p.PruneEmail = email
+		} else {
+			p.PruneEmail = r.FormValue("notify_email")
+			errs = append(errs, a.t(r, "error.email_invalid"))
+		}
 	}
 	preset, expr, err := presetFromForm(r, "prune")
 	if err != nil {
@@ -398,7 +416,14 @@ func (a *App) planRunNow(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/systems/"+itoa(s.ID)+"/schedule/backup", http.StatusSeeOther)
 		return
 	}
-	job, err := a.sched.Start(s.ID, kind, models.TriggerManual, currentUser(r).Username)
+	email, ok := a.notifyEmail(r)
+	if !ok {
+		a.flash(w, r, "error", "error.email_invalid")
+		http.Redirect(w, r, "/systems/"+itoa(s.ID), http.StatusSeeOther)
+		return
+	}
+	job, err := a.sched.Start(scheduler.StartRequest{SystemID: s.ID, Kind: kind, Trigger: models.TriggerManual,
+		Username: currentUser(r).Username, NotifyEmail: email, Lang: a.tr.Language(r)})
 	if errors.Is(err, scheduler.ErrBusy) {
 		a.flash(w, r, "error", "error.job_running")
 		http.Redirect(w, r, "/systems/"+itoa(s.ID), http.StatusSeeOther)

@@ -47,7 +47,7 @@ const Prefix = "LOCUTUS_"
 func Load() *Config {
 	dataDir := env("DATA_DIR", "/data")
 	return &Config{
-		ListenAddr:      env("LISTEN_ADDR", ":3000"),
+		ListenAddr:      env("LISTEN_ADDR", ":2224"),
 		DataDir:         dataDir,
 		DBPath:          env("DB_PATH", filepath.Join(dataDir, "locutus.db")),
 		BaseURL:         strings.TrimRight(env("BASE_URL", ""), "/"),

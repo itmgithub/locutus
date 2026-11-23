@@ -110,6 +110,7 @@ type overviewData struct {
 	PruneDesc  string
 	Running    bool
 	Retention  map[string]int // days of logging kept per category, 0 = forever
+	Notify     notifyField    // "mail the output to" of Back up now and Prune now
 }
 
 // systemOverview shows the archives, backup jobs and restores of a system.
@@ -118,7 +119,7 @@ func (a *App) systemOverview(w http.ResponseWriter, r *http.Request) {
 	if s == nil {
 		return
 	}
-	data := overviewData{System: s, Repository: repositoryOf(s), Running: a.sched.IsRunning(s.ID)}
+	data := overviewData{System: s, Repository: repositoryOf(s), Running: a.sched.IsRunning(s.ID), Notify: a.notifyField(r)}
 	ids, err := a.historyIDs(s)
 	if err != nil {
 		a.serverError(w, r, err)
@@ -180,6 +181,7 @@ type browseData struct {
 	// Locutus container.
 	Targets       []*models.System
 	DefaultTarget int64
+	Notify        notifyField
 }
 
 func (a *App) archiveBrowse(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +193,7 @@ func (a *App) archiveBrowse(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	data := browseData{System: s, Archive: archive}
+	data := browseData{System: s, Archive: archive, Notify: a.notifyField(r)}
 	if currentUser(r).CanRestore() {
 		targets, err := a.restoreTargets(r)
 		if err != nil {
@@ -214,7 +216,7 @@ func (a *App) restoreTargets(r *http.Request) ([]*models.System, error) {
 	}
 	var clients []*models.System
 	for _, c := range list {
-		if c.IsClient() {
+		if c.IsClient() && c.AllowRestore {
 			clients = append(clients, c)
 		}
 	}
@@ -399,8 +401,15 @@ func (a *App) archiveRestore(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, back, http.StatusSeeOther)
 		return
 	}
+	email, ok := a.notifyEmail(r)
+	if !ok {
+		a.flash(w, r, "error", "error.email_invalid")
+		http.Redirect(w, r, back, http.StatusSeeOther)
+		return
+	}
 	req := scheduler.RestoreRequest{SystemID: s.ID, Archive: archive, Username: currentUser(r).Username,
-		DryRun: r.FormValue("dry_run") == "1", Overwrite: r.FormValue("overwrite") == "1"}
+		DryRun: r.FormValue("dry_run") == "1", Overwrite: r.FormValue("overwrite") == "1",
+		NotifyEmail: email, Lang: a.tr.Language(r)}
 	for _, it := range items {
 		req.Paths = append(req.Paths, it.Path)
 	}

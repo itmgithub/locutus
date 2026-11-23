@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"itmon.nl/locutus/internal/borg"
+	"itmon.nl/locutus/internal/i18n"
 	"itmon.nl/locutus/internal/models"
 	"itmon.nl/locutus/internal/schedule"
 )
@@ -31,6 +32,7 @@ var ErrBusy = errors.New("a job for this system is already running")
 type Scheduler struct {
 	store *models.Store
 	borg  *borg.Service
+	tr    *i18n.Translator // for the mails with the output of jobs
 
 	mu      sync.Mutex
 	running map[int64]bool // client system id -> job running
@@ -39,8 +41,8 @@ type Scheduler struct {
 }
 
 // New creates a scheduler.
-func New(store *models.Store, b *borg.Service) *Scheduler {
-	return &Scheduler{store: store, borg: b, running: map[int64]bool{}, ctx: context.Background()}
+func New(store *models.Store, b *borg.Service, tr *i18n.Translator) *Scheduler {
+	return &Scheduler{store: store, borg: b, tr: tr, running: map[int64]bool{}, ctx: context.Background()}
 }
 
 // Run checks the plans until ctx is cancelled.
@@ -95,7 +97,8 @@ func (s *Scheduler) checkPlans() {
 				s.store.SetNextBackup(p.SystemID, schedule.NextRun(p.Schedule, now))
 			} else if !p.NextBackupAt.After(now) {
 				s.store.SetNextBackup(p.SystemID, schedule.NextRun(p.Schedule, now))
-				if _, err := s.Start(p.SystemID, models.JobBackup, models.TriggerSchedule, ""); err != nil {
+				if _, err := s.Start(StartRequest{SystemID: p.SystemID, Kind: models.JobBackup, Trigger: models.TriggerSchedule,
+					NotifyEmail: p.BackupEmail}); err != nil {
 					log.Printf("scheduler: backup of system %d: %v", p.SystemID, err)
 				}
 				continue // the prune waits for the next tick
@@ -106,7 +109,8 @@ func (s *Scheduler) checkPlans() {
 				s.store.SetNextPrune(p.SystemID, schedule.NextRun(p.PruneSchedule, now))
 			} else if !p.NextPruneAt.After(now) && !s.IsRunning(p.SystemID) {
 				s.store.SetNextPrune(p.SystemID, schedule.NextRun(p.PruneSchedule, now))
-				if _, err := s.Start(p.SystemID, models.JobPrune, models.TriggerSchedule, ""); err != nil {
+				if _, err := s.Start(StartRequest{SystemID: p.SystemID, Kind: models.JobPrune, Trigger: models.TriggerSchedule,
+					NotifyEmail: p.PruneEmail}); err != nil {
 					log.Printf("scheduler: prune of system %d: %v", p.SystemID, err)
 				}
 			}
@@ -114,19 +118,30 @@ func (s *Scheduler) checkPlans() {
 	}
 }
 
+// StartRequest describes a backup or prune to start.
+type StartRequest struct {
+	SystemID    int64
+	Kind        string // models.JobBackup or models.JobPrune
+	Trigger     string
+	Username    string
+	NotifyEmail string // where the output is mailed; "" is nowhere
+	Lang        string // language of that mail; "" is the default language
+}
+
 // Start begins a backup or prune of a client in the background and returns
 // the job record.
-func (s *Scheduler) Start(systemID int64, kind, trigger, username string) (*models.Job, error) {
-	if kind != models.JobBackup && kind != models.JobPrune {
-		return nil, fmt.Errorf("unknown job kind %q", kind)
+func (s *Scheduler) Start(req StartRequest) (*models.Job, error) {
+	if req.Kind != models.JobBackup && req.Kind != models.JobPrune {
+		return nil, fmt.Errorf("unknown job kind %q", req.Kind)
 	}
-	return s.start(&models.Job{SystemID: systemID, Kind: kind, Trigger: trigger, Username: username})
+	return s.start(&models.Job{SystemID: req.SystemID, Kind: req.Kind, Trigger: req.Trigger, Username: req.Username,
+		NotifyEmail: req.NotifyEmail}, req.Lang)
 }
 
 // StartDelete begins deleting one archive of a client in the background.
 func (s *Scheduler) StartDelete(systemID int64, archive, username string) (*models.Job, error) {
 	return s.start(&models.Job{SystemID: systemID, Kind: models.JobDelete, Trigger: models.TriggerManual,
-		Username: username, Archive: archive})
+		Username: username, Archive: archive}, "")
 }
 
 // RestoreRequest describes a restore started by a user.
@@ -139,6 +154,8 @@ type RestoreRequest struct {
 	DryRun      bool
 	Overwrite   bool
 	Username    string
+	NotifyEmail string // where the output is mailed; "" is nowhere
+	Lang        string // language of that mail; "" is the default language
 }
 
 // StartRestore begins a restore in the background. It runs as a job of the
@@ -151,17 +168,20 @@ func (s *Scheduler) StartRestore(req RestoreRequest) (*models.Job, error) {
 		return nil, errors.New("nothing to restore")
 	}
 	job := &models.Job{SystemID: req.SystemID, Kind: models.JobRestore, Trigger: models.TriggerManual, Username: req.Username,
-		Archive: req.Archive, Paths: req.Paths, Destination: req.Destination, DryRun: req.DryRun, Overwrite: req.Overwrite}
+		Archive: req.Archive, Paths: req.Paths, Destination: req.Destination, DryRun: req.DryRun, Overwrite: req.Overwrite,
+		NotifyEmail: req.NotifyEmail}
 	if req.Target != nil {
 		if !req.Target.IsClient() {
 			return nil, errors.New("a restore can only go to a client")
 		}
 		job.TargetID, job.TargetName = req.Target.ID, req.Target.Name
 	}
-	return s.start(job)
+	return s.start(job, req.Lang)
 }
 
-func (s *Scheduler) start(job *models.Job) (*models.Job, error) {
+// start runs the job in the background. lang is the language of the mail
+// with the output, when the job has a NotifyEmail.
+func (s *Scheduler) start(job *models.Job, lang string) (*models.Job, error) {
 	systemID := job.SystemID
 	s.mu.Lock()
 	if s.running[systemID] {
@@ -203,8 +223,15 @@ func (s *Scheduler) start(job *models.Job) (*models.Job, error) {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		defer release()
-		s.execute(ctx, sys, job)
+		func() {
+			defer release()
+			s.execute(ctx, sys, job)
+		}()
+		// Mail after the system is free again: a slow mail server must not
+		// hold up the next job.
+		if job.NotifyEmail != "" {
+			s.notify(context.WithoutCancel(ctx), job.ID, lang)
+		}
 	}()
 	return job, nil
 }

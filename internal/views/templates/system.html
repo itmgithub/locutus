@@ -13,17 +13,38 @@
   <div class="form-actions flush">
     <a class="button secondary" href="/systems/{{$s.ID}}/schedule/backup">{{t "system.backup_schedule"}}</a>
     <a class="button secondary" href="/systems/{{$s.ID}}/schedule/prune">{{t "system.prune_schedule"}}</a>
-    <form method="post" action="/systems/{{$s.ID}}/run/backup" class="inline">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <button type="submit" {{if $d.Running}}disabled{{end}}>{{t "system.backup_now"}}</button>
-    </form>
-    <form method="post" action="/systems/{{$s.ID}}/run/prune" class="inline" data-confirm="{{t "system.prune_confirm"}}">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <button type="submit" class="secondary" {{if $d.Running}}disabled{{end}}>{{t "system.prune_now"}}</button>
-    </form>
+    <div class="split-button">
+      <button type="submit" form="run-backup" {{if $d.Running}}disabled{{end}}>{{t "system.backup_now"}}</button>
+      {{if $d.Notify.Enabled}}<button type="button" class="split-toggle" aria-expanded="false" aria-controls="run-backup-mail"
+        title="{{t "notify.toggle"}}" aria-label="{{t "notify.toggle"}}" {{if $d.Running}}disabled{{end}}><span class="caret" aria-hidden="true"></span></button>{{end}}
+    </div>
+    <div class="split-button">
+      <button type="submit" form="run-prune" class="secondary" data-confirm="{{t "system.prune_confirm"}}" {{if $d.Running}}disabled{{end}}>{{t "system.prune_now"}}</button>
+      {{if $d.Notify.Enabled}}<button type="button" class="secondary split-toggle" aria-expanded="false" aria-controls="run-prune-mail"
+        title="{{t "notify.toggle"}}" aria-label="{{t "notify.toggle"}}" {{if $d.Running}}disabled{{end}}><span class="caret" aria-hidden="true"></span></button>{{end}}
+    </div>
   </div>
   {{end}}
 </div>
+
+{{if and $s.IsClient $u.CanBackup}}
+{{range $kind := list "backup" "prune"}}
+<form id="run-{{$kind}}" method="post" action="/systems/{{$s.ID}}/run/{{$kind}}">
+  <input type="hidden" name="csrf" value="{{$.CSRF}}">
+  {{if $d.Notify.Enabled}}
+  <div class="accordion" id="run-{{$kind}}-mail">
+    <div class="accordion-inner">
+      <div class="panel notify-panel">
+        <label for="run-{{$kind}}-email"><strong>{{t (print "system." $kind "_now")}}</strong> · {{t "notify.label"}}</label>
+        <input type="email" multiple id="run-{{$kind}}-email" name="notify_email" value="{{$d.Notify.Default}}" placeholder="{{t "notify.placeholder"}}">
+        <p class="hint">{{t "notify.run_hint"}}</p>
+      </div>
+    </div>
+  </div>
+  {{end}}
+</form>
+{{end}}
+{{end}}
 
 {{if $d.Running}}<div class="flash info">{{t "system.job_running"}}</div>{{end}}
 

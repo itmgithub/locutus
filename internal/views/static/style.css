@@ -227,3 +227,19 @@ ul.plain { margin: 4px 0; padding-left: 18px; }
 /* Logging */
 .days-input { max-width: 120px; }
 .date-input { width: auto; padding: 6px 9px; border: 1px solid var(--border); border-radius: 4px; font: inherit; }
+
+/* Split button: the main action, and a small arrow that opens an accordion
+   below the page header with the options of that action. */
+.split-button { display: inline-flex; }
+.split-button > button:first-child:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.split-toggle { border-top-left-radius: 0; border-bottom-left-radius: 0; padding-left: 9px; padding-right: 9px; border-left: 1px solid rgba(255, 255, 255, .35); }
+.split-toggle.secondary { border-left-color: #bcc3cb; }
+.caret { display: inline-block; vertical-align: middle; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid currentColor; transition: transform .15s ease; }
+.split-toggle[aria-expanded=true] .caret { transform: rotate(180deg); }
+.accordion { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows .2s ease, visibility 0s linear .2s; }
+.accordion.open { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows .2s ease; }
+.accordion-inner { overflow: hidden; min-height: 0; }
+.notify-panel { margin: 8px 0 16px; padding: 12px 16px; }
+.notify-panel label { display: block; font-weight: normal; margin-bottom: 6px; }
+.notify-panel input { max-width: 420px; }
+@media (prefers-reduced-motion: reduce) { .accordion, .accordion.open, .caret { transition: none; } }

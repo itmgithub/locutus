@@ -27,6 +27,10 @@
     <h2>{{t "plan.when_prune"}}</h2>
     <label class="check"><input type="checkbox" name="prune_enabled" value="1" {{if $pl.PruneEnabled}}checked{{end}}> {{t "plan.prune_enabled"}}</label>
     {{template "schedule-editor" $d.Schedule}}
+    {{if $d.Notify.Enabled}}
+    <label for="notify_email">{{t "notify.label"}} <span class="hint">{{t "notify.schedule_hint"}}</span></label>
+    <input type="email" multiple id="notify_email" name="notify_email" value="{{$pl.PruneEmail}}" placeholder="{{t "notify.placeholder"}}">
+    {{end}}
   </div>
 
   <div class="form-actions">

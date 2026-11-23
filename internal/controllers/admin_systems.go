@@ -5,6 +5,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"itmon.nl/locutus/internal/borg"
+	"itmon.nl/locutus/internal/client"
 	"itmon.nl/locutus/internal/models"
 	"itmon.nl/locutus/internal/scheduler"
 	"itmon.nl/locutus/internal/views"
@@ -58,6 +60,11 @@ type systemFormData struct {
 	BorgVersions    []int
 	KnownHostsFile  string
 	ClientCount     int
+	// Locutus client container only.
+	Container        *models.Container
+	ManagerPublicKey string
+	ManagerFinger    string
+	HostKeyOffer     *hostKeyOffer
 }
 
 // systemFromPath returns the system being edited, or a new one of the kind
@@ -68,7 +75,7 @@ func (a *App) systemFromPath(w http.ResponseWriter, r *http.Request) *models.Sys
 			a.errorPage(w, r, http.StatusNotFound, "error.not_found")
 			return nil
 		}
-		return &models.System{Kind: kind, Location: models.LocationRemote, Port: 22, BorgVersion: 1}
+		return &models.System{Kind: kind, Location: models.LocationRemote, Port: 22, BorgVersion: 1, AllowRestore: true}
 	}
 	s, err := a.store.GetSystem(pathID(r, "id"))
 	if err != nil {
@@ -125,6 +132,14 @@ func (a *App) systemFormData(s *models.System) (*systemFormData, error) {
 			return nil, err
 		}
 	}
+	if data.Container, err = a.store.ContainerOf(s); err != nil || data.Container == nil {
+		return data, err
+	}
+	key, err := a.store.ContainerManagerKey(data.Container)
+	if err != nil {
+		return nil, err
+	}
+	data.ManagerPublicKey, data.ManagerFinger = publicKeyOf(key, "locutus-manager")
 	return data, nil
 }
 
@@ -157,6 +172,7 @@ func (a *App) adminSystemSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	isNew := s.ID == 0
+	before := *s
 	s.Name = formText(r, "name")
 	s.Description = formText(r, "description")
 	s.Location = r.FormValue("location")
@@ -175,8 +191,11 @@ func (a *App) adminSystemSubmit(w http.ResponseWriter, r *http.Request) {
 	} else if taken {
 		errs = append(errs, "error.system_name_taken")
 	}
-	if s.Location != models.LocationLocal && s.Location != models.LocationRemote {
+	if s.Location != models.LocationLocal && s.Location != models.LocationRemote && s.Location != models.LocationLocutusClient {
 		errs = append(errs, "error.location_invalid")
+	}
+	if s.IsLocutusClient() {
+		s.SSHUser = models.ContainerSSHUser
 	}
 	if s.IsRemote() {
 		if s.Host == "" || s.SSHUser == "" || strings.ContainsAny(s.Host+s.SSHUser, " @/'\"") {
@@ -196,9 +215,17 @@ func (a *App) adminSystemSubmit(w http.ResponseWriter, r *http.Request) {
 			errs = append(errs, "error.repo_path_required")
 		} else if !s.IsRemote() && !strings.HasPrefix(s.RepoPath, "/") {
 			errs = append(errs, "error.repo_path_absolute")
+		} else if s.IsLocutusClient() && !client.RepositoryName.MatchString(s.ContainerName()) {
+			errs = append(errs, "error.container_repo_path")
 		}
 	} else {
-		s.UseSudo = s.IsRemote() && r.FormValue("use_sudo") == "1"
+		s.UseSudo = s.Location == models.LocationRemote && r.FormValue("use_sudo") == "1"
+		s.AllowRestore = true
+		if s.IsLocutusClient() {
+			// The container sets up sudo itself and refuses restores
+			// when they are not allowed here.
+			s.UseSudo, s.AllowRestore = true, r.FormValue("allow_restore") == "1"
+		}
 		s.RepositoryID = formID(r, "repository_id")
 		repo, err := a.store.GetSystem(s.RepositoryID)
 		switch {
@@ -214,6 +241,22 @@ func (a *App) adminSystemSubmit(w http.ResponseWriter, r *http.Request) {
 				return
 			} else if taken {
 				errs = append(errs, "error.archive_prefix_taken")
+			}
+		}
+	}
+	if s.IsLocutusClient() && s.Host != "" {
+		others, err := a.store.ContainerSystems(&models.Container{Host: s.Host, Port: s.Port})
+		if err != nil {
+			a.serverError(w, r, err)
+			return
+		}
+		for _, o := range others {
+			switch {
+			case o.ID == s.ID:
+			case s.IsClient() && o.IsClient():
+				errs = append(errs, "error.container_second_client")
+			case s.IsRepository() && o.IsRepository() && o.RepoPath == s.RepoPath:
+				errs = append(errs, "error.container_repo_taken")
 			}
 		}
 	}
@@ -268,6 +311,11 @@ func (a *App) adminSystemSubmit(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		a.serverError(w, r, err)
 		return
+	}
+	if isNew {
+		a.pushAffected(r, s)
+	} else {
+		a.pushAffected(r, &before, s)
 	}
 	a.flash(w, r, "success", "admin.systems.saved", s.Name)
 	http.Redirect(w, r, "/admin/systems/"+itoa(s.ID)+"/edit", http.StatusSeeOther)
@@ -347,6 +395,7 @@ func (a *App) adminSystemGenerateKey(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, r, err)
 		return
 	}
+	a.pushAffected(r, s)
 	a.flash(w, r, "success", "admin.systems.key_generated")
 	http.Redirect(w, r, "/admin/systems/"+itoa(s.ID)+"/edit"+anchor, http.StatusSeeOther)
 }
@@ -360,8 +409,24 @@ func (a *App) adminSystemTest(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Minute)
 	defer cancel()
-	var out string
+	var out, pushed string
 	var err error
+	// A Locutus client container first gets the current configuration.
+	if c, cerr := a.store.ContainerOf(s); cerr != nil {
+		a.serverError(w, r, cerr)
+		return
+	} else if c != nil {
+		pushed, err = a.pushContainer(ctx, c, a.tr.Language(r))
+		switch {
+		case errors.Is(err, errNoManagerKey):
+			pushed, err = "", nil
+		case err != nil:
+			a.renderTestResult(w, r, s, a.t(r, "container.push_title")+"\n"+pushed, err)
+			return
+		default:
+			pushed = a.t(r, "container.push_title") + "\n" + pushed + "\n\n" + a.t(r, "container.test_title") + "\n"
+		}
+	}
 	if s.IsRepository() {
 		var repo *borg.Repo
 		if repo, err = scheduler.RepoFor(a.store, s); err == nil {
@@ -377,14 +442,14 @@ func (a *App) adminSystemTest(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else {
-		client := borg.Client{Local: !s.IsRemote(), Address: s.SSHAddress(), User: s.SSHUser, Sudo: s.UseSudo}
+		cl := borg.Client{Local: !s.IsRemote(), Address: s.SSHAddress(), User: s.SSHUser, Sudo: s.UseSudo}
 		var sec *models.SystemSecrets
 		if sec, err = a.store.SystemSecrets(s.ID); err == nil {
-			client.SSHKey = sec.SSHKey
-			out, err = a.borg.ClientVersion(ctx, client)
+			cl.SSHKey = sec.SSHKey
+			out, err = a.borg.ClientVersion(ctx, cl)
 		}
 	}
-	a.renderTestResult(w, r, s, out, err)
+	a.renderTestResult(w, r, s, pushed+out, err)
 }
 
 func (a *App) renderTestResult(w http.ResponseWriter, r *http.Request, s *models.System, out string, err error) {
@@ -455,6 +520,7 @@ func (a *App) adminDeleteSystem(w http.ResponseWriter, r *http.Request) {
 		a.serverError(w, r, err)
 		return
 	}
+	a.pushAffected(r, s)
 	a.flash(w, r, "success", "admin.systems.deleted", s.Name)
 	http.Redirect(w, r, "/admin/systems", http.StatusSeeOther)
 }

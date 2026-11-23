@@ -31,10 +31,14 @@ type BackupPlan struct {
 	KeepWeekly    int
 	KeepMonthly   int
 	KeepYearly    int
-	NextBackupAt  time.Time
-	NextPruneAt   time.Time
-	UpdatedBy     string
-	UpdatedAt     time.Time
+	// Where the output of scheduled backups and prunes is mailed; "" is
+	// nowhere. A comma separated list of addresses.
+	BackupEmail  string
+	PruneEmail   string
+	NextBackupAt time.Time
+	NextPruneAt  time.Time
+	UpdatedBy    string
+	UpdatedAt    time.Time
 }
 
 // DefaultPlan returns the plan used for a client without configuration.
@@ -63,7 +67,7 @@ func splitLines(s string) []string {
 
 const planColumns = `system_id, enabled, paths, excludes, compression, one_file_system, schedule, prune_enabled,
 	prune_schedule, keep_hourly, keep_daily, keep_weekly, keep_monthly, keep_yearly, next_backup_at, next_prune_at,
-	updated_by, updated_at`
+	updated_by, updated_at, backup_email, prune_email`
 
 func scanPlan(row interface{ Scan(...any) error }) (*BackupPlan, error) {
 	var p BackupPlan
@@ -71,7 +75,7 @@ func scanPlan(row interface{ Scan(...any) error }) (*BackupPlan, error) {
 	var nextBackup, nextPrune, updated int64
 	if err := row.Scan(&p.SystemID, &p.Enabled, &paths, &excludes, &p.Compression, &p.OneFileSystem, &p.Schedule,
 		&p.PruneEnabled, &p.PruneSchedule, &p.KeepHourly, &p.KeepDaily, &p.KeepWeekly, &p.KeepMonthly, &p.KeepYearly,
-		&nextBackup, &nextPrune, &p.UpdatedBy, &updated); err != nil {
+		&nextBackup, &nextPrune, &p.UpdatedBy, &updated, &p.BackupEmail, &p.PruneEmail); err != nil {
 		return nil, err
 	}
 	p.Paths, p.Excludes = splitLines(paths), splitLines(excludes)
@@ -97,16 +101,18 @@ func unixOrZero(t time.Time) int64 {
 
 // SavePlan stores a plan, including the next run times.
 func (st *Store) SavePlan(p *BackupPlan) error {
-	_, err := st.db.Exec(`INSERT INTO backup_plans (`+planColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := st.db.Exec(`INSERT INTO backup_plans (`+planColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (system_id) DO UPDATE SET enabled = excluded.enabled, paths = excluded.paths,
 		excludes = excluded.excludes, compression = excluded.compression, one_file_system = excluded.one_file_system,
 		schedule = excluded.schedule, prune_enabled = excluded.prune_enabled, prune_schedule = excluded.prune_schedule,
 		keep_hourly = excluded.keep_hourly, keep_daily = excluded.keep_daily, keep_weekly = excluded.keep_weekly,
 		keep_monthly = excluded.keep_monthly, keep_yearly = excluded.keep_yearly, next_backup_at = excluded.next_backup_at,
-		next_prune_at = excluded.next_prune_at, updated_by = excluded.updated_by, updated_at = excluded.updated_at`,
+		next_prune_at = excluded.next_prune_at, updated_by = excluded.updated_by, updated_at = excluded.updated_at,
+		backup_email = excluded.backup_email, prune_email = excluded.prune_email`,
 		p.SystemID, p.Enabled, strings.Join(p.Paths, "\n"), strings.Join(p.Excludes, "\n"), p.Compression,
 		p.OneFileSystem, p.Schedule, p.PruneEnabled, p.PruneSchedule, p.KeepHourly, p.KeepDaily, p.KeepWeekly,
-		p.KeepMonthly, p.KeepYearly, unixOrZero(p.NextBackupAt), unixOrZero(p.NextPruneAt), p.UpdatedBy, now())
+		p.KeepMonthly, p.KeepYearly, unixOrZero(p.NextBackupAt), unixOrZero(p.NextPruneAt), p.UpdatedBy, now(),
+		p.BackupEmail, p.PruneEmail)
 	return err
 }
 

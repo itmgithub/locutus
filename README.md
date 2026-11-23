@@ -14,9 +14,6 @@ backups from the browser:
 Locutus runs as a single Docker container on amd64 and arm64 and works with borg 1.x. The
 interface is available in English and Dutch.
 
-## Note
-Locutus is currenty being tested. So far it has been working great at a small site with different backup schedules etc. The SAML connection is completely untested! OIDC has been tested but also in a limited scope. Again, backups and restores work great and I found no issues. That said; testing is key!
-
 ## Contents
 
 1. [How Locutus works](#how-locutus-works)
@@ -25,22 +22,26 @@ Locutus is currenty being tested. So far it has been working great at a small si
 4. [Users and roles](#users-and-roles)
 5. [Adding a repository](#adding-a-repository)
 6. [Adding a client](#adding-a-client)
-7. [Making backups](#making-backups)
-8. [Restoring files](#restoring-files)
-9. [Cleaning up logging](#cleaning-up-logging)
-10. [Backing up Locutus itself](#backing-up-locutus-itself)
-11. [Troubleshooting](#troubleshooting)
-12. [Security tips](#security-tips)
+7. [The Locutus client container](#the-locutus-client-container)
+8. [Making backups](#making-backups)
+9. [Restoring files](#restoring-files)
+10. [Mailing the output of jobs](#mailing-the-output-of-jobs)
+11. [Cleaning up logging](#cleaning-up-logging)
+12. [Backing up Locutus itself](#backing-up-locutus-itself)
+13. [Troubleshooting](#troubleshooting)
+14. [Security tips](#security-tips)
 
 ## How Locutus works
 
 Everything you work with in Locutus is a **system**. There are two kinds:
 
 - A **repository** is where borg stores the backups: a directory on a backup server (*remote*,
-  over SSH) or a directory on the Docker host (*local*).
+  over SSH), a directory on the Docker host (*local*), or a directory in a
+  [Locutus client container](#the-locutus-client-container) (*Locutus client*).
 - A **client** is a machine or directory that is backed up. Each client backs up to one
   repository. A *remote* client is a server that Locutus reaches over SSH. A *local* client is a
-  directory of the Docker host that you have mounted into the container.
+  directory of the Docker host that you have mounted into the container. A *Locutus client* is a
+  machine with Docker on which the Locutus client container runs.
 
 Some examples:
 
@@ -49,6 +50,7 @@ Some examples:
 | a web server | a backup server | a remote client and a remote repository |
 | directories on the Docker host | a backup server | a local client and a remote repository |
 | directories on the Docker host | a disk in the Docker host | a local client and a local repository |
+| the shares of a NAS with Docker | the NAS itself or another machine with Docker | a client and a repository, both with location *Locutus client* |
 
 A remote client can only back up to a remote repository, because the client itself has to reach
 the repository.
@@ -70,34 +72,70 @@ adjust `docker-compose.yml` if needed (see [Settings](#settings)) and start it:
 docker compose up -d --build
 ```
 
-Then open `http://<host>:3000`. On the first start you create an administrator; you choose the
+Then open `http://<host>:2224`. On the first start you create an administrator; you choose the
 username yourself.
 
 At the top right of every page you choose the language. By default Locutus follows the language
 of your browser. The version and build number are shown at the bottom of every page, for example
-`Locutus v1.0 (Build: abcde) · Sero locutus, cito paenituit.`
+`Locutus v1.2 (Build: abcde) · Sero locutus, cito paenituit.`
 
 ### Updating
 
 Get the new version and start again with `docker compose up -d --build`. With a new version, also
 check whether the [wrapper on the clients](#5-optional-install-the-locutus-wrapper) needs to be updated.
 
+Within a major version you can update directly from any earlier version, for example from v1.0
+to v1.2 without installing v1.1 first. Locutus updates the database itself on the first start;
+make a [backup of the data directory](#backing-up-locutus-itself) before updating. A new major
+version (such as v2.0) comes with an upgrade script that you run once first; its release notes
+say how.
+
+**Updating to v1.2:**
+
+- Locutus now listens on port `2224` instead of `3000`. Use `2224:2224` under `ports:` and
+  `LOCUTUS_LISTEN_ADDR=:2224`, as in the new `docker-compose.yml`, or keep the old port by
+  setting both back to `3000`.
+- The [Locutus client container](#the-locutus-client-container) is now configured by Locutus
+  and uses port `2223` by default. Remove the `LOCUTUS_REPOSITORY_...` and `LOCUTUS_CLIENT_...`
+  settings from its `docker-compose.yml`, give its systems in Locutus the location *Locutus
+  client* and set `LOCUTUS_MANAGER_KEY`, as described in its
+  [QuickStart](client/QuickStart.md). If you change the port of an existing container, also
+  change it for its systems in Locutus.
+
 ### Building for another machine
 
 Want to build Locutus on one machine and run it on another, for example a Raspberry Pi? Then
-create an image file per architecture:
+create image files with `build.sh`. By default it builds both Locutus and the
+[Locutus client container](#the-locutus-client-container), for amd64 and arm64:
 
 ```sh
-for arch in amd64 arm64; do
-    docker buildx build --platform linux/$arch -t itmon.nl/locutus:latest -o type=docker,dest=locutus-$arch.tar .
-done
+./build.sh                       # locutus-amd64.tar, locutus-arm64.tar,
+                                 # locutus-client-amd64.tar, locutus-client-arm64.tar
+./build.sh -t client -a arm64    # only the client, only arm64
+./build.sh -h                    # all options
 ```
 
-Copy the right file to the target machine and load it with
-`docker load -i locutus-arm64.tar` (or `locutus-amd64.tar`).
+Copy the right file to the target machine and load it with, for example,
+`docker load -i locutus-arm64.tar`. The images are tagged `latest` and with the version, such as
+`itmon.nl/locutus:v1.2` and `itmon.nl/locutus-client:v1.2`.
 
 By default the build number is the start of the git commit. You can also set it yourself with
-`docker compose build --build-arg BUILD=abcde`.
+`./build.sh -b abcde` or `docker compose build --build-arg BUILD=abcde`.
+
+### Pushing the images to a registry
+
+The repository builds two images, each pushed to its own repository in your registry: Locutus
+itself, and the [Locutus client container](#the-locutus-client-container) (the `client` target
+of the same Dockerfile). Both have the same version, set in `internal/version/version.go`:
+
+```sh
+docker buildx build --platform linux/amd64,linux/arm64 \
+    -t registry.example.com/locutus:v1.2 --push .
+docker buildx build --platform linux/amd64,linux/arm64 --target client \
+    -t registry.example.com/locutus-client:v1.2 --push .
+```
+
+Then use `image: registry.example.com/locutus:v1.2` in `docker-compose.yml` instead of `build:`.
 
 ## Settings
 
@@ -139,9 +177,9 @@ HTTPS.
 | `LOCUTUS_TLS_CERT`, `LOCUTUS_TLS_KEY` | – | Certificate and key for HTTPS (see below). |
 | `LOCUTUS_TLS_CA` | – | Intermediate certificates for the certificate, when they are not already in the certificate file. |
 | `LOCUTUS_DEFAULT_LANGUAGE` | `en` | Language for users whose browser asks for neither English nor Dutch: `en` or `nl`. |
-| `LOCUTUS_EXTRA_CA_CERTS` | – | Extra trusted certificates for logging in through OIDC or SAML. See [Certificate error when logging in through OIDC or SAML](#certificate-error-when-logging-in-through-oidc-or-saml). |
+| `LOCUTUS_EXTRA_CA_CERTS` | – | Extra trusted certificates for logging in through OIDC or SAML and for the [mail server](#mailing-the-output-of-jobs). See [Certificate error when logging in through OIDC or SAML](#certificate-error-when-logging-in-through-oidc-or-saml). |
 | `LOCUTUS_SECRET_KEY` | – | Key with which Locutus stores SSH keys and passphrases encrypted (32 bytes, base64). Without it, Locutus creates `secret.key` in the data directory. |
-| `LOCUTUS_LISTEN_ADDR` | `:3000` | Port inside the container. For another port on the host, change `ports:` instead. |
+| `LOCUTUS_LISTEN_ADDR` | `:2224` | Port inside the container. For another port on the host, change `ports:` instead. |
 
 For special cases you can also move parts of the data directory: `LOCUTUS_DATA_DIR` (the data
 directory in the container, `/data`), `LOCUTUS_DB_PATH` (the database),
@@ -181,7 +219,7 @@ system which users see it.
 
 | Role | Can |
 |------|-----|
-| **Admin** | Manage systems, users, roles and identity providers, and [clean up logging](#cleaning-up-logging). Does *not* see backups or files. |
+| **Admin** | Manage systems, users, roles, identity providers and the [mail server](#mailing-the-output-of-jobs), and [clean up logging](#cleaning-up-logging). Does *not* see backups or files. |
 | **Viewer** | Browse the backups of assigned systems, including the files in them, and see what has happened. |
 | **Restorer** | Everything a viewer can, plus [download or restore](#restoring-files) files. |
 | **Backupper** | Everything a restorer can, plus set up the schedules of assigned clients, start a backup or prune right away, and delete backups. |
@@ -194,7 +232,8 @@ set or replace them.
 
 ## Adding a repository
 
-As the administrator, go to **Systems › New repository**.
+As the administrator, go to **Systems › New repository**. If the backup server runs Docker, the
+[Locutus client container](#the-locutus-client-container) can also be the backup server.
 
 ### Local repository
 
@@ -265,7 +304,8 @@ documentation.
 ## Adding a client
 
 As the administrator, go to **Systems › New client** and choose the repository the client backs
-up to.
+up to. To back up directories of a machine that runs Docker, such as a server or a NAS, you can
+also use the [Locutus client container](#the-locutus-client-container).
 
 ### Local client
 
@@ -403,6 +443,46 @@ Click **Test connection** on the client. You then see the borg version on the cl
 `borg 1.4.0`. With sudo, this also shows that sudo works for borg. Then make a first backup (see
 [Making backups](#making-backups)) and check the output.
 
+## The Locutus client container
+
+The Locutus client is a container for any machine that runs Docker: a server, a NAS, a
+Raspberry Pi, or a host whose other containers keep their data in volumes. Locutus reaches
+it over SSH, and it can be:
+
+- a **repository server**: it serves borg repositories from a directory mounted at `/repos`;
+- a **client**: Locutus backs up the directories mounted below `/volumes` and restores files to
+  them;
+- or both at the same time.
+
+Locutus configures the container itself. In Locutus, you give the repositories and the client
+the location **Locutus client**, with the host and port of the container. Locutus then pushes the
+configuration over SSH: the repositories with their keys, the client key and the host keys of the
+repository servers. The container sets up the user `borg`, sshd, the wrapper and sudo in the same
+way as described above for a remote repository and a remote client, including append-only with a
+prune key.
+
+The `docker-compose.yml` of the container only holds which directories to mount and the
+**management key** (`LOCUTUS_MANAGER_KEY`): the public key with which Locutus pushes the
+configuration. That key can do nothing else: it is restricted to one command that reads the
+configuration, checks it and applies it. Optionally, `LOCUTUS_MANAGER_FROM` limits it (and the
+prune keys) to the address of Locutus.
+
+Locutus pushes the configuration automatically after every change of a system in the container
+and before **Test connection**, and with the **Push configuration** button. The container keeps
+the pushed configuration, its SSH host key and the borg cache in `/config`. The repositories
+themselves are in `/repos`, outside the container. So you can throw the container away and start
+a new one, for example with a new version:
+
+- **with the same `/config`**: everything works right away;
+- **without `/config`**: the container has a new host key. Locutus then refuses the connection
+  until you click **Check host key**, compare the fingerprint with the log of the container and
+  accept it. Locutus then pushes the configuration again, and the existing repositories in
+  `/repos` are served as before.
+
+See [client/QuickStart.md](client/QuickStart.md) for the setup and
+[client/docker-compose.yml](client/docker-compose.yml) for all settings. Use the same version of
+the client container as of Locutus.
+
 ## Making backups
 
 This is done by a backupper. Open **My systems** and choose the client.
@@ -497,6 +577,41 @@ destination. The files then end up on the Docker host in `./restore` next to
 The directories of Locutus itself, such as the data directory, are protected. Locutus never
 restores anything there.
 
+## Mailing the output of jobs
+
+Locutus can mail the output of backups, prunes and restores, the same output you see under
+**Logging**. This is optional.
+
+### Setting up the mail server
+
+As the administrator, go to **Mail** and fill in:
+
+- **Host** and **Port** of the mail server;
+- **Connection security**: *STARTTLS* (usually port 587) or *SMTPS* (usually port 465). The
+  connection is always encrypted: if the server does not offer STARTTLS, nothing is sent. The
+  certificate of the mail server is checked; for an internal CA, see `LOCUTUS_EXTRA_CA_CERTS`;
+- **Sender address**, for example `locutus@example.com`;
+- optionally a **Username** and **Password**. The password is stored encrypted and cannot be
+  viewed; leave the field empty to keep it.
+
+Save and click **Send test mail**. To stop mailing, empty the host and save.
+
+### Who gets the mail
+
+- **Scheduled backups and prunes**: fill in **Mail the output to** in the backup schedule and
+  in the prune schedule. Separate several addresses with commas. Leave it empty for no mail.
+- **Back up now and Prune now**: the arrow next to the button opens a field with your own email
+  address filled in. Change or empty it before clicking the button. Without opening it, the
+  output is mailed to your own address.
+- **Restores**: the same field is below the restore options.
+  Local users set their address under **Account**; users of an identity provider get it from
+  the provider.
+
+The mail is sent when the job has finished. Whether that worked is added to the end of the
+output of the job, for example `The output has been mailed to ops@example.com.` The mail is in
+the language of the person who started the job; scheduled jobs use
+`LOCUTUS_DEFAULT_LANGUAGE`.
+
 ## Cleaning up logging
 
 For every system, Locutus records which backups, prunes, deletions, restores and downloads have
@@ -556,6 +671,8 @@ Also keep the passphrases of your repositories and an export of the repository k
 Locutus remembers the host key of every server on the first connection. If it changes later, for
 example after a reinstall, Locutus refuses the connection. If the change is expected, remove the
 line of that server from `ssh/known_hosts` in the data directory and test the connection again.
+For a [Locutus client container](#the-locutus-client-container), click **Check host key** on one
+of its systems instead.
 
 ### Restoring to a client is refused
 

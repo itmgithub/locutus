@@ -53,6 +53,11 @@
       <label class="check"><input type="checkbox" id="restore-overwrite" name="overwrite" value="1"> {{t "restore.overwrite"}}</label>
       <p class="hint">{{t "restore.overwrite_hint"}}</p>
     </div>
+    {{if $d.Notify.Enabled}}
+    <label for="restore-notify">{{t "notify.label"}}</label>
+    <input type="email" multiple id="restore-notify" name="notify_email" value="{{$d.Notify.Default}}" placeholder="{{t "notify.placeholder"}}">
+    <p class="hint">{{t "notify.manual_hint"}}</p>
+    {{end}}
     <div class="form-actions">
       <button type="submit" id="restore-button" formaction="/systems/{{$d.System.ID}}/archives/{{$d.Archive}}/restore" data-needs-selection disabled
         data-label-dry="{{t "restore.start_dry"}}" data-label-real="{{t "restore.start"}}"

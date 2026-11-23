@@ -21,18 +21,13 @@ import (
 	"itmon.nl/locutus/internal/scheduler"
 	"itmon.nl/locutus/internal/secrets"
 	"itmon.nl/locutus/internal/tlsutil"
+	"itmon.nl/locutus/internal/version"
 	"itmon.nl/locutus/internal/views"
 )
 
-// Version is the semantic version of the application.
-var Version = "v1.0"
-
-// Build is the short git commit id, injected at build time via -ldflags.
-var Build = "dev"
-
 func main() {
 	cfg := config.Load()
-	log.Printf("Locutus %s (Build: %s) starting", Version, Build)
+	log.Printf("Locutus %s (Build: %s) starting", version.Version, version.Build)
 
 	if len(cfg.ExtraCAs) > 0 {
 		pool, n, err := tlsutil.LoadPool(cfg.ExtraCAs)
@@ -65,7 +60,7 @@ func main() {
 		log.Fatalf("load translations: %v", err)
 	}
 
-	renderer, err := views.New(translator, Version, Build)
+	renderer, err := views.New(translator, version.Version, version.Build)
 	if err != nil {
 		log.Fatalf("load templates: %v", err)
 	}
@@ -85,7 +80,7 @@ func main() {
 		log.Printf("using %s", v)
 	}
 
-	sched := scheduler.New(store, borgSvc)
+	sched := scheduler.New(store, borgSvc, translator)
 	ctx, stopScheduler := context.WithCancel(context.Background())
 	go sched.Run(ctx)
 

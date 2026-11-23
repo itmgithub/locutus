@@ -18,6 +18,7 @@
         <a href="/admin/users" {{if hasPrefix .Path "/admin/users"}}class="active"{{end}}>{{t "nav.users"}}</a>
         <a href="/admin/providers" {{if hasPrefix .Path "/admin/providers"}}class="active"{{end}}>{{t "nav.providers"}}</a>
         <a href="/admin/logging" {{if hasPrefix .Path "/admin/logging"}}class="active"{{end}}>{{t "nav.logging"}}</a>
+        <a href="/admin/mail" {{if hasPrefix .Path "/admin/mail"}}class="active"{{end}}>{{t "nav.mail"}}</a>
       {{else if .User.CanView}}
         <a href="/systems" {{if hasPrefix .Path "/systems"}}class="active"{{end}}>{{t "nav.my_systems"}}</a>
       {{end}}

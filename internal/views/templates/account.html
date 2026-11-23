@@ -12,4 +12,13 @@
     <div class="form-actions"><button type="submit">{{t "account.submit"}}</button></div>
   </form>
 </div>
+<div class="panel narrow">
+  <h2>{{t "account.email_title"}}</h2>
+  <form method="post" action="/account/email" class="stacked">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label for="email">{{t "user.email"}} <span class="hint">{{t "account.email_hint"}}</span></label>
+    <input type="email" id="email" name="email" value="{{.User.Email}}" autocomplete="email">
+    <div class="form-actions"><button type="submit">{{t "common.save"}}</button></div>
+  </form>
+</div>
 {{end}}

@@ -44,7 +44,7 @@
     <tr>
       <td><a href="/admin/systems/{{.ID}}/edit">{{.Name}}</a>{{if .Description}}<div class="muted small">{{.Description}}</div>{{end}}</td>
       <td>{{t (print "system.location." .Location)}}</td>
-      <td>{{if .IsRemote}}<code>{{.SSHUser}}@{{.SSHAddress}}</code> <span class="badge {{if .HasSSHKey}}ok{{else}}missing{{end}}">{{t "system.ssh_key"}}</span>{{if .UseSudo}} <span class="badge">sudo</span>{{end}}{{else}}<span class="muted">{{t "system.container"}}</span>{{end}}</td>
+      <td>{{if .IsRemote}}<code>{{.SSHUser}}@{{.SSHAddress}}</code> <span class="badge {{if .HasSSHKey}}ok{{else}}missing{{end}}">{{t "system.ssh_key"}}</span>{{if and .UseSudo (not .IsLocutusClient)}} <span class="badge">sudo</span>{{end}}{{else}}<span class="muted">{{t "system.container"}}</span>{{end}}</td>
       <td>{{index $p.Data.RepoNames .RepositoryID}}</td>
       <td class="actions">
         <a class="button small secondary" href="/admin/systems/{{.ID}}/edit">{{t "common.edit"}}</a>

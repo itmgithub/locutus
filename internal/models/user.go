@@ -174,6 +174,12 @@ func (s *Store) SetUserRole(id int64, role string) error {
 	return err
 }
 
+// SetUserEmail changes the email address of a user.
+func (s *Store) SetUserEmail(id int64, email string) error {
+	_, err := s.db.Exec(`UPDATE users SET email = ? WHERE id = ?`, email, id)
+	return err
+}
+
 // SetUserPassword changes the password hash of a local user.
 func (s *Store) SetUserPassword(id int64, passwordHash string) error {
 	_, err := s.db.Exec(`UPDATE users SET password_hash = ? WHERE id = ? AND provider_id IS NULL`, passwordHash, id)

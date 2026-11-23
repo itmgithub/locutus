@@ -14,8 +14,15 @@
       e.preventDefault();
       return;
     }
-    // A real restore that overwrites files asks for confirmation first.
+    // A submit button can ask for its own confirmation, when the form has
+    // several buttons that do different things.
     var submitter = e.submitter;
+    var buttonMsg = submitter && submitter.getAttribute("data-confirm");
+    if (buttonMsg && !window.confirm(buttonMsg)) {
+      e.preventDefault();
+      return;
+    }
+    // A real restore that overwrites files asks for confirmation first.
     var overwriteMsg = submitter && submitter.getAttribute("data-confirm-overwrite");
     if (overwriteMsg) {
       var overwrite = form.querySelector("input[name=overwrite]");
@@ -300,8 +307,33 @@
     });
   }
 
+  // Split buttons: the arrow opens or closes the accordion with the options
+  // of its action (aria-controls); at most one is open at a time.
+  function initSplitToggles() {
+    var toggles = document.querySelectorAll(".split-toggle[aria-controls]");
+    function setOpen(toggle, open) {
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      var panel = document.getElementById(toggle.getAttribute("aria-controls"));
+      if (panel) {
+        panel.classList.toggle("open", open);
+      }
+    }
+    toggles.forEach(function (toggle) {
+      toggle.addEventListener("click", function () {
+        var open = toggle.getAttribute("aria-expanded") !== "true";
+        toggles.forEach(function (other) { setOpen(other, other === toggle && open); });
+        var panel = document.getElementById(toggle.getAttribute("aria-controls"));
+        var input = open && panel && panel.querySelector("input:not([type=hidden])");
+        if (input) {
+          input.focus({ preventScroll: true });
+        }
+      });
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", function () {
     syncToggles();
+    initSplitToggles();
     document.querySelectorAll("form[data-autosubmit]").forEach(initAutosubmit);
     var restoreButton = document.getElementById("restore-button");
     if (restoreButton) {

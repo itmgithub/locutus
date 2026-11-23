@@ -37,6 +37,9 @@ type Job struct {
 	StartedAt  time.Time
 	FinishedAt time.Time
 	Output     string
+	// NotifyEmail is where the output is mailed when the job has finished
+	// (a comma separated list of addresses); "" is nowhere.
+	NotifyEmail string
 
 	// Restores only. TargetID 0 is the Locutus container itself.
 	TargetID    int64
@@ -61,14 +64,14 @@ func (j *Job) Duration() time.Duration {
 }
 
 const jobColumns = `j.id, j.system_id, s.name, j.kind, j.trigger, j.username, j.status, j.archive, j.started_at, j.finished_at,
-	COALESCE(j.target_id, 0), j.target_name, j.destination, j.paths, j.dry_run, j.overwrite, j.bytes`
+	COALESCE(j.target_id, 0), j.target_name, j.destination, j.paths, j.dry_run, j.overwrite, j.bytes, j.notify_email`
 
 func scanJob(row interface{ Scan(...any) error }, withOutput bool) (*Job, error) {
 	var j Job
 	var started, finished int64
 	var paths string
 	dest := []any{&j.ID, &j.SystemID, &j.SystemName, &j.Kind, &j.Trigger, &j.Username, &j.Status, &j.Archive, &started, &finished,
-		&j.TargetID, &j.TargetName, &j.Destination, &paths, &j.DryRun, &j.Overwrite, &j.Bytes}
+		&j.TargetID, &j.TargetName, &j.Destination, &paths, &j.DryRun, &j.Overwrite, &j.Bytes, &j.NotifyEmail}
 	if withOutput {
 		dest = append(dest, &j.Output)
 	}
@@ -83,9 +86,10 @@ func scanJob(row interface{ Scan(...any) error }, withOutput bool) (*Job, error)
 func (st *Store) CreateJob(j *Job) error {
 	j.StartedAt, j.Status = time.Now(), StatusRunning
 	res, err := st.db.Exec(`INSERT INTO jobs (system_id, kind, trigger, username, status, archive, started_at,
-		target_id, target_name, destination, paths, dry_run, overwrite)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, j.SystemID, j.Kind, j.Trigger, j.Username, j.Status, j.Archive,
-		j.StartedAt.Unix(), nullID(j.TargetID), j.TargetName, j.Destination, strings.Join(j.Paths, "\n"), j.DryRun, j.Overwrite)
+		target_id, target_name, destination, paths, dry_run, overwrite, notify_email)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, j.SystemID, j.Kind, j.Trigger, j.Username, j.Status, j.Archive,
+		j.StartedAt.Unix(), nullID(j.TargetID), j.TargetName, j.Destination, strings.Join(j.Paths, "\n"), j.DryRun, j.Overwrite,
+		j.NotifyEmail)
 	if err != nil {
 		return err
 	}
@@ -101,6 +105,13 @@ func (st *Store) FinishJob(id int64, status, output string, bytes int64) error {
 	}
 	_, err := st.db.Exec(`UPDATE jobs SET status = ?, output = ?, bytes = ?, finished_at = ? WHERE id = ?`,
 		status, output, bytes, now(), id)
+	return err
+}
+
+// AppendJobOutput adds a note to the output of a finished job, such as
+// whether its output could be mailed.
+func (st *Store) AppendJobOutput(id int64, note string) error {
+	_, err := st.db.Exec(`UPDATE jobs SET output = output || ? WHERE id = ?`, note, id)
 	return err
 }
 

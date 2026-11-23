@@ -17,6 +17,14 @@
 <div class="panel test-result {{if $d.TestOK}}ok{{else}}failed{{end}}">
   <h2>{{if $d.TestOK}}{{t "admin.systems.test_ok"}}{{else}}{{t "admin.systems.test_failed"}}{{end}}</h2>
   {{if $d.TestOutput}}<pre class="code">{{$d.TestOutput}}</pre>{{end}}
+  {{with $d.HostKeyOffer}}
+  <p>{{t "container.host_key_compare"}}</p>
+  <form method="post" action="/admin/systems/{{$s.ID}}/container/hostkey/accept" class="inline" data-busy="{{t "container.pushing"}}">
+    <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+    <input type="hidden" name="fingerprint" value="{{.Fingerprint}}">
+    <button type="submit">{{t "container.host_key_accept" .Fingerprint}}</button>
+  </form>
+  {{end}}
 </div>
 {{end}}
 
@@ -34,6 +42,7 @@
     <label for="location">{{t "system.location"}}</label>
     <select id="location" name="location">
       <option value="remote" {{if eq $s.Location "remote"}}selected{{end}}>{{t (print "system.location.remote." $s.Kind)}}</option>
+      <option value="locutus-client" {{if eq $s.Location "locutus-client"}}selected{{end}}>{{t (print "system.location.locutus-client." $s.Kind)}}</option>
       <option value="local" {{if eq $s.Location "local"}}selected{{end}}>{{t (print "system.location.local." $s.Kind)}}</option>
     </select>
 
@@ -44,10 +53,15 @@
         {{range $d.Repositories}}<option value="{{.ID}}" {{if eq .ID $s.RepositoryID}}selected{{end}}>{{.Name}} ({{t (print "system.location." .Location)}})</option>{{end}}
       </select>
       <p class="hint">{{t "system.repository_hint"}}</p>
+      <div data-show-when="location=locutus-client">
+        <label class="check spaced-check"><input type="checkbox" name="allow_restore" value="1" {{if $s.AllowRestore}}checked{{end}}> {{t "system.allow_restore"}}</label>
+        <p class="hint">{{t "system.allow_restore_hint"}}</p>
+      </div>
     {{else}}
       <label for="repo_path">{{t "system.repo_path"}}</label>
       <input type="text" id="repo_path" name="repo_path" value="{{$s.RepoPath}}" required placeholder="/srv/borg/repo">
       <p class="hint" data-show-when="location=remote">{{t "system.repo_path_hint_remote"}}</p>
+      <p class="hint" data-show-when="location=locutus-client">{{t "system.repo_path_hint_container"}}</p>
       <p class="hint" data-show-when="location=local">{{t "system.repo_path_hint_local"}}</p>
       <label for="borg_version">{{t "system.borg_version"}}</label>
       <select id="borg_version" name="borg_version">
@@ -55,7 +69,7 @@
       </select>
     {{end}}
 
-    <div data-show-when="location=remote">
+    <div data-show-when="location=remote|locutus-client">
       <div class="row-3">
         <div>
           <label for="host">{{t "system.host"}}</label>
@@ -65,7 +79,7 @@
           <label for="port">{{t "system.port"}}</label>
           <input type="number" id="port" name="port" value="{{$s.Port}}" min="1" max="65535">
         </div>
-        <div>
+        <div data-show-when="location=remote">
           <label for="ssh_user">{{t "system.ssh_user"}}</label>
           <input type="text" id="ssh_user" name="ssh_user" value="{{$s.SSHUser}}" placeholder="borg">
         </div>
@@ -74,8 +88,10 @@
       <textarea id="ssh_key" name="ssh_key" rows="4" class="mono" placeholder="-----BEGIN OPENSSH PRIVATE KEY-----" spellcheck="false"></textarea>
       {{if $s.HasSSHKey}}<label class="check"><input type="checkbox" name="remove_ssh_key" value="1"> {{t "system.ssh_key_remove"}}</label>{{end}}
       {{if $s.IsClient}}
-      <label class="check spaced-check"><input type="checkbox" name="use_sudo" value="1" {{if $s.UseSudo}}checked{{end}}> {{t "system.use_sudo"}}</label>
-      <p class="hint">{{t "system.use_sudo_hint"}}</p>
+      <div data-show-when="location=remote">
+        <label class="check spaced-check"><input type="checkbox" name="use_sudo" value="1" {{if $s.UseSudo}}checked{{end}}> {{t "system.use_sudo"}}</label>
+        <p class="hint">{{t "system.use_sudo_hint"}}</p>
+      </div>
       {{end}}
       {{if $s.IsRepository}}
       <label for="prune_ssh_key">{{t "system.prune_ssh_key"}} <span class="hint">{{if $s.HasPruneKey}}{{t "system.secret_keep"}}{{else}}{{t "system.prune_ssh_key_hint"}}{{end}}</span></label>
@@ -101,11 +117,46 @@
 
 {{if $s.ID}}
 <div>
+  {{with $d.Container}}
+  <div class="panel" id="container">
+    <h2>{{t "container.title"}}</h2>
+    <p class="muted">{{t "container.intro" .SSHAddress}}</p>
+    {{if $d.ManagerPublicKey}}
+      <p class="muted">{{t "container.manager_key_hint"}}</p>
+      <pre class="code wrap">LOCUTUS_MANAGER_KEY: {{$d.ManagerPublicKey}}</pre>
+      <p class="muted small">{{$d.ManagerFinger}}</p>
+    {{else}}
+      <p class="muted">{{t "container.no_manager_key"}}</p>
+    {{end}}
+    <div class="form-actions">
+      <form method="post" action="/admin/systems/{{$s.ID}}/container/genkey" class="inline" {{if $d.ManagerPublicKey}}data-confirm="{{t "container.genkey_confirm"}}"{{end}}>
+        <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+        <button type="submit" class="secondary">{{t "container.genkey"}}</button>
+      </form>
+      {{if $d.ManagerPublicKey}}
+      <form method="post" action="/admin/systems/{{$s.ID}}/container/push" class="inline" data-busy="{{t "container.pushing"}}">
+        <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+        <button type="submit" class="secondary">{{t "container.push"}}</button>
+      </form>
+      {{end}}
+      <form method="post" action="/admin/systems/{{$s.ID}}/container/hostkey" class="inline" data-busy="{{t "container.checking"}}">
+        <input type="hidden" name="csrf" value="{{$p.CSRF}}">
+        <button type="submit" class="secondary">{{t "container.host_key_check"}}</button>
+      </form>
+    </div>
+    <p class="muted small">{{t "container.auto_push_hint"}}</p>
+    {{if not .PushedAt.IsZero}}
+      <h3>{{t "container.last_push"}} <span class="badge {{if .PushOK}}ok{{else}}missing{{end}}">{{if .PushOK}}{{t "container.push_ok"}}{{else}}{{t "container.push_failed"}}{{end}}</span></h3>
+      <p class="muted small">{{datesec .PushedAt}}</p>
+      {{if .PushOutput}}<pre class="code">{{.PushOutput}}</pre>{{end}}
+    {{end}}
+  </div>
+  {{end}}
   {{if $s.IsRemote}}
   <div class="panel" id="ssh">
     <h2>{{t "system.ssh_public_key"}}</h2>
     {{if $d.PublicKey}}
-      <p class="muted">{{if $s.IsRepository}}{{t "system.public_key_repo_hint"}}{{else}}{{t "system.public_key_client_hint"}}{{end}}</p>
+      <p class="muted">{{if $s.IsLocutusClient}}{{t "system.public_key_container_hint"}}{{else if $s.IsRepository}}{{t "system.public_key_repo_hint"}}{{else}}{{t "system.public_key_client_hint"}}{{end}}</p>
       <pre class="code wrap">{{$d.PublicKey}}</pre>
       <p class="muted small">{{$d.Fingerprint}}</p>
     {{else}}
@@ -121,7 +172,7 @@
   <div class="panel" id="prune-key">
     <h2>{{t "system.prune_public_key"}}</h2>
     {{if $d.PrunePublicKey}}
-      <p class="muted">{{t "system.prune_public_key_hint"}}</p>
+      <p class="muted">{{if $s.IsLocutusClient}}{{t "system.public_key_container_hint"}}{{else}}{{t "system.prune_public_key_hint"}}{{end}}</p>
       <pre class="code wrap">{{$d.PrunePublicKey}}</pre>
       <p class="muted small">{{$d.PruneFinger}}</p>
     {{else}}

@@ -39,9 +39,14 @@ func Open(path string) (*sql.DB, error) {
 	return database, nil
 }
 
-// migrations are applied in order. Until version 1.0 the schema is changed in
-// place (in the first entry) and existing databases are not migrated; from
-// 1.0 on, never change an existing entry, only append.
+// migrations are applied in order; schema_version records how many have
+// been applied. A database of any earlier 1.x version is therefore brought up
+// to date in one go, also when versions in between were skipped.
+//
+// Within a major version, never change an existing entry, only append. A new
+// major version starts again from a single entry with the complete schema;
+// databases of the previous major version are converted by an upgrade script
+// first, so this list does not keep growing.
 var migrations = []string{
 	`
 CREATE TABLE identity_providers (
@@ -177,6 +182,31 @@ CREATE INDEX restores_system ON restores (system_id, created_at DESC);
 CREATE TABLE settings (
 	key   TEXT PRIMARY KEY,
 	value TEXT NOT NULL
+);
+`,
+	// v1.1: mail the output of jobs. The mail server itself is stored in settings.
+	`
+ALTER TABLE jobs ADD COLUMN notify_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE backup_plans ADD COLUMN backup_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE backup_plans ADD COLUMN prune_email TEXT NOT NULL DEFAULT '';
+`,
+	// v1.2: systems in a Locutus client container. Such a system is stored
+	// with location 'remote' and client_container = 1; Locutus pushes the
+	// configuration of the container with its management key.
+	`
+ALTER TABLE systems ADD COLUMN client_container INTEGER NOT NULL DEFAULT 0;
+-- clients only: may files be restored to the client
+ALTER TABLE systems ADD COLUMN allow_restore INTEGER NOT NULL DEFAULT 1;
+
+CREATE TABLE client_containers (
+	host        TEXT    NOT NULL COLLATE NOCASE,
+	port        INTEGER NOT NULL,
+	-- encrypted private key with which Locutus pushes the configuration
+	manager_key TEXT    NOT NULL DEFAULT '',
+	pushed_at   INTEGER NOT NULL DEFAULT 0,
+	push_ok     INTEGER NOT NULL DEFAULT 0,
+	push_output TEXT    NOT NULL DEFAULT '',
+	PRIMARY KEY (host, port)
 );
 `,
 }

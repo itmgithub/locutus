@@ -8,6 +8,7 @@
   <div class="stat"><span class="label">{{t "job.finished"}}</span><span class="value">{{datesec $j.FinishedAt}}</span></div>
   <div class="stat"><span class="label">{{t "job.duration"}}</span><span class="value">{{$j.Duration}}</span></div>
   <div class="stat"><span class="label">{{t "job.trigger"}}</span><span class="value">{{t (print "job.trigger." $j.Trigger)}}{{if $j.Username}} ({{$j.Username}}){{end}}</span></div>
+  {{if $j.NotifyEmail}}<div class="stat"><span class="label">{{t "notify.mailed_to"}}</span><span class="value">{{$j.NotifyEmail}}</span></div>{{end}}
   {{if $j.Archive}}<div class="stat"><span class="label">{{t "archive.name"}}</span><span class="value"><code>{{$j.Archive}}</code></span></div>{{end}}
   {{if eq $j.Kind "restore"}}
   <div class="stat"><span class="label">{{t "restore.target"}}</span><span class="value">{{if $j.LocalTarget}}{{t "restore.target_local"}}{{else}}{{$j.TargetName}}{{end}}</span></div>

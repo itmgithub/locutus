@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"itmon.nl/locutus/internal/auth"
+	"itmon.nl/locutus/internal/mail"
 	"itmon.nl/locutus/internal/models"
 	"itmon.nl/locutus/internal/views"
 )
@@ -170,6 +171,33 @@ func (a *App) accountSubmit(w http.ResponseWriter, r *http.Request) {
 	}
 	a.flash(w, r, "success", "account.changed")
 	http.Redirect(w, r, "/", http.StatusSeeOther)
+}
+
+// accountEmailSubmit lets a local user change the own email address, to
+// which the output of the jobs they start is mailed by default. Users of an
+// identity provider get their address from the provider.
+func (a *App) accountEmailSubmit(w http.ResponseWriter, r *http.Request) {
+	u := currentUser(r)
+	if !u.IsLocal() {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+	email := formText(r, "email")
+	if email != "" {
+		addr, err := mail.ParseAddress(email)
+		if err != nil {
+			a.render(w, r, http.StatusUnprocessableEntity, "account", &views.Page{Title: a.t(r, "account.title"),
+				Errors: []string{a.t(r, "error.email_invalid")}})
+			return
+		}
+		email = addr
+	}
+	if err := a.store.SetUserEmail(u.ID, email); err != nil {
+		a.serverError(w, r, err)
+		return
+	}
+	a.flash(w, r, "success", "account.email_changed")
+	http.Redirect(w, r, "/account", http.StatusSeeOther)
 }
 
 // enabledProvider loads an active provider of the expected type from the path.

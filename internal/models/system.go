@@ -15,6 +15,14 @@ const (
 
 	LocationLocal  = "local"
 	LocationRemote = "remote"
+	// LocationLocutusClient is a system in a Locutus client container: over
+	// SSH like a remote system, but Locutus configures the container itself.
+	LocationLocutusClient = "locutus-client"
+
+	// ContainerSSHUser is the SSH user of a Locutus client container, and
+	// ContainerReposDir the directory with its repositories.
+	ContainerSSHUser  = "borg"
+	ContainerReposDir = "/repos/"
 )
 
 // System is a borg repository or a client that is backed up into a
@@ -37,6 +45,7 @@ type System struct {
 	HasPassphrase bool
 	HasPruneKey   bool // repositories only: a separate key for prune and compact
 	UseSudo       bool // remote clients only: run borg, tar and stat with "sudo -n"
+	AllowRestore  bool // clients only: files may be restored to the client
 	CreatedAt     time.Time
 
 	// Repository is filled by GetSystem for client systems.
@@ -56,8 +65,18 @@ func (s *System) IsRepository() bool { return s.Kind == KindRepository }
 // IsClient reports whether the system is a client.
 func (s *System) IsClient() bool { return s.Kind == KindClient }
 
-// IsRemote reports whether the system is reached over SSH.
-func (s *System) IsRemote() bool { return s.Location == LocationRemote }
+// IsRemote reports whether the system is reached over SSH, also in a
+// Locutus client container.
+func (s *System) IsRemote() bool {
+	return s.Location == LocationRemote || s.Location == LocationLocutusClient
+}
+
+// IsLocutusClient reports whether the system is in a Locutus client container.
+func (s *System) IsLocutusClient() bool { return s.Location == LocationLocutusClient }
+
+// ContainerName returns the directory of a repository in a Locutus client
+// container: its path without /repos/.
+func (s *System) ContainerName() string { return strings.TrimPrefix(s.RepoPath, ContainerReposDir) }
 
 // RepoLocation returns the borg repository location: the local path or an
 // ssh:// URL. Relative remote paths are relative to the home directory.
@@ -113,14 +132,20 @@ func ArchivePrefixFor(name string) string {
 }
 
 const systemColumns = `s.id, s.name, s.kind, s.location, s.description, s.host, s.port, s.ssh_user, s.repo_path,
-	s.borg_version, COALESCE(s.repository_id, 0), s.archive_prefix, s.ssh_key != '', s.passphrase != '', s.prune_ssh_key != '', s.use_sudo, s.created_at`
+	s.borg_version, COALESCE(s.repository_id, 0), s.archive_prefix, s.ssh_key != '', s.passphrase != '', s.prune_ssh_key != '', s.use_sudo, s.client_container,
+	s.allow_restore, s.created_at`
 
 func scanSystem(row interface{ Scan(...any) error }) (*System, error) {
 	var s System
 	var created int64
+	var container bool
 	if err := row.Scan(&s.ID, &s.Name, &s.Kind, &s.Location, &s.Description, &s.Host, &s.Port, &s.SSHUser,
-		&s.RepoPath, &s.BorgVersion, &s.RepositoryID, &s.ArchivePrefix, &s.HasSSHKey, &s.HasPassphrase, &s.HasPruneKey, &s.UseSudo, &created); err != nil {
+		&s.RepoPath, &s.BorgVersion, &s.RepositoryID, &s.ArchivePrefix, &s.HasSSHKey, &s.HasPassphrase, &s.HasPruneKey, &s.UseSudo,
+		&container, &s.AllowRestore, &created); err != nil {
 		return nil, notFound(err)
+	}
+	if container {
+		s.Location = LocationLocutusClient
 	}
 	s.CreatedAt = time.Unix(created, 0)
 	return &s, nil
@@ -199,11 +224,16 @@ func (st *Store) SaveSystem(s *System) error {
 	if s.BorgVersion == 0 {
 		s.BorgVersion = 1
 	}
+	location, container := s.Location, s.IsLocutusClient()
+	if container {
+		location = LocationRemote
+	}
 	if s.ID == 0 {
 		res, err := st.db.Exec(`INSERT INTO systems (name, kind, location, description, host, port, ssh_user, repo_path,
-			borg_version, repository_id, archive_prefix, use_sudo, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			s.Name, s.Kind, s.Location, s.Description, s.Host, s.Port, s.SSHUser, s.RepoPath,
-			s.BorgVersion, nullID(s.RepositoryID), s.ArchivePrefix, s.UseSudo, now())
+			borg_version, repository_id, archive_prefix, use_sudo, client_container, allow_restore, created_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			s.Name, s.Kind, location, s.Description, s.Host, s.Port, s.SSHUser, s.RepoPath,
+			s.BorgVersion, nullID(s.RepositoryID), s.ArchivePrefix, s.UseSudo, container, s.AllowRestore, now())
 		if err != nil {
 			return err
 		}
@@ -211,9 +241,10 @@ func (st *Store) SaveSystem(s *System) error {
 		return err
 	}
 	_, err := st.db.Exec(`UPDATE systems SET name = ?, location = ?, description = ?, host = ?, port = ?, ssh_user = ?,
-		repo_path = ?, borg_version = ?, repository_id = ?, archive_prefix = ?, use_sudo = ? WHERE id = ?`,
-		s.Name, s.Location, s.Description, s.Host, s.Port, s.SSHUser, s.RepoPath, s.BorgVersion,
-		nullID(s.RepositoryID), s.ArchivePrefix, s.UseSudo, s.ID)
+		repo_path = ?, borg_version = ?, repository_id = ?, archive_prefix = ?, use_sudo = ?, client_container = ?,
+		allow_restore = ? WHERE id = ?`,
+		s.Name, location, s.Description, s.Host, s.Port, s.SSHUser, s.RepoPath, s.BorgVersion,
+		nullID(s.RepositoryID), s.ArchivePrefix, s.UseSudo, container, s.AllowRestore, s.ID)
 	return err
 }
 

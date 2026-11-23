@@ -1,0 +1,56 @@
+{{define "content"}}
+{{$c := .Data.Config}}
+<h1>{{t "admin.mail.title"}}</h1>
+<p class="muted section-intro">{{t "admin.mail.intro"}}</p>
+
+<form method="post" action="/admin/mail" class="stacked panel">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <div class="row-2">
+    <div>
+      <label for="host">{{t "admin.mail.host"}} <span class="hint">{{t "admin.mail.host_hint"}}</span></label>
+      <input type="text" id="host" name="host" value="{{$c.Host}}" spellcheck="false" autocomplete="off" placeholder="smtp.example.com">
+    </div>
+    <div class="row-2">
+      <div>
+        <label for="security">{{t "admin.mail.security"}}</label>
+        <select id="security" name="security">
+          {{range .Data.Securities}}<option value="{{.}}" {{if eq . $c.Security}}selected{{end}}>{{t (print "admin.mail.security." .)}}</option>{{end}}
+        </select>
+      </div>
+      <div>
+        <label for="port">{{t "admin.mail.port"}}</label>
+        <input type="number" id="port" name="port" min="1" max="65535" value="{{if $c.Host}}{{$c.Port}}{{end}}" placeholder="587">
+      </div>
+    </div>
+  </div>
+  <p class="hint">{{t "admin.mail.security_hint"}}</p>
+  <label for="from">{{t "admin.mail.from"}}</label>
+  <input type="email" id="from" name="from" value="{{$c.From}}" placeholder="locutus@example.com">
+  <div class="row-2">
+    <div>
+      <label for="username">{{t "admin.mail.username"}} <span class="hint">{{t "admin.mail.optional"}}</span></label>
+      <input type="text" id="username" name="username" value="{{$c.Username}}" spellcheck="false" autocomplete="off">
+    </div>
+    <div>
+      <label for="password">{{t "admin.mail.password"}} <span class="hint">{{if .Data.HasPassword}}{{t "admin.mail.password_keep"}}{{else}}{{t "admin.mail.optional"}}{{end}}</span></label>
+      <input type="password" id="password" name="password" autocomplete="new-password">
+    </div>
+  </div>
+  {{if .Data.HasPassword}}<label class="check"><input type="checkbox" name="remove_password" value="1"> {{t "admin.mail.remove_password"}}</label>{{end}}
+  <p class="hint">{{t "admin.mail.auth_hint"}}</p>
+  <div class="form-actions">
+    <button type="submit">{{t "common.save"}}</button>
+  </div>
+</form>
+
+{{if $c.Configured}}
+<div class="panel">
+  <h2>{{t "admin.mail.test_title"}}</h2>
+  <form method="post" action="/admin/mail/test" class="inline-form" data-busy="{{t "admin.mail.testing"}}">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <input type="email" name="to" value="{{.Data.TestTo}}" required aria-label="{{t "admin.mail.test_to"}}" placeholder="{{t "admin.mail.test_to"}}">
+    <button type="submit" class="secondary">{{t "admin.mail.test"}}</button>
+  </form>
+</div>
+{{end}}
+{{end}}

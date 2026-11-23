@@ -34,6 +34,10 @@
     <h2>{{t "plan.when_backup"}}</h2>
     <label class="check"><input type="checkbox" name="enabled" value="1" {{if $pl.Enabled}}checked{{end}}> {{t "plan.enabled"}}</label>
     {{template "schedule-editor" $d.Schedule}}
+    {{if $d.Notify.Enabled}}
+    <label for="notify_email">{{t "notify.label"}} <span class="hint">{{t "notify.schedule_hint"}}</span></label>
+    <input type="email" multiple id="notify_email" name="notify_email" value="{{$pl.BackupEmail}}" placeholder="{{t "notify.placeholder"}}">
+    {{end}}
   </div>
 
   <div class="form-actions">

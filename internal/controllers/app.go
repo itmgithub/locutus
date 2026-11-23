@@ -80,6 +80,7 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("GET /norole", a.requireLogin(a.noRole))
 	mux.HandleFunc("GET /account", a.requireLogin(a.accountForm))
 	mux.HandleFunc("POST /account", a.requireLogin(a.accountSubmit))
+	mux.HandleFunc("POST /account/email", a.requireLogin(a.accountEmailSubmit))
 
 	// External identity providers.
 	mux.HandleFunc("GET /auth/oidc/{id}/login", a.oidcLogin)
@@ -113,9 +114,16 @@ func (a *App) Routes() http.Handler {
 	mux.HandleFunc("POST /admin/systems/{id}/test", admin(a.adminSystemTest))
 	mux.HandleFunc("POST /admin/systems/{id}/init", admin(a.adminSystemInit))
 	mux.HandleFunc("POST /admin/systems/{id}/delete", admin(a.adminDeleteSystem))
+	mux.HandleFunc("POST /admin/systems/{id}/container/genkey", admin(a.adminContainerGenerateKey))
+	mux.HandleFunc("POST /admin/systems/{id}/container/push", admin(a.adminContainerPush))
+	mux.HandleFunc("POST /admin/systems/{id}/container/hostkey", admin(a.adminContainerHostKey))
+	mux.HandleFunc("POST /admin/systems/{id}/container/hostkey/accept", admin(a.adminContainerAcceptHostKey))
 	mux.HandleFunc("GET /admin/logging", admin(a.adminLogging))
 	mux.HandleFunc("POST /admin/logging/retention", admin(a.adminLoggingRetention))
 	mux.HandleFunc("POST /admin/logging/purge", admin(a.adminLoggingPurge))
+	mux.HandleFunc("GET /admin/mail", admin(a.adminMail))
+	mux.HandleFunc("POST /admin/mail", admin(a.adminMailSubmit))
+	mux.HandleFunc("POST /admin/mail/test", admin(a.adminMailTest))
 
 	// Backups of assigned systems: viewers see, restorers also download and
 	// backuppers also maintain the backup and prune plans of clients.

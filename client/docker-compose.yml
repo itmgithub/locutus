@@ -1,0 +1,63 @@
+# Locutus client: a repository server for Locutus, a client whose volumes
+# Locutus backs up, or both. Locutus configures the roles itself: in
+# Locutus, give the repositories and the client the location "Locutus
+# client" with the host and port of this container. This file only says
+# which directories the container gets and which key Locutus uses to push
+# the configuration. See QuickStart.md next to this file.
+services:
+  locutus-client:
+    build:
+      context: ..
+      target: client
+      # Optional: set the build number explicitly, default is the git commit.
+      #args:
+      #  BUILD: abcde
+    image: itmon.nl/locutus-client
+    container_name: locutus-client
+    # A small init process as PID 1, which cleans up finished processes.
+    init: true
+    restart: unless-stopped
+    ports:
+      # SSH. Locutus connects to this port as user "borg".
+      - "2223:22"
+    volumes:
+      # Persistent: the SSH host key (with a new one Locutus refuses the
+      # connection until you accept it), the configuration that Locutus
+      # pushed and the borg cache of the client role. Keep this directory.
+      # Override with LOCUTUS_CLIENT_CONFIG_DIR, e.g. in a .env file next to this file.
+      - ${LOCUTUS_CLIENT_CONFIG_DIR:-./config}:/config
+
+      # Repository role: the repositories, one directory per repository.
+      # In Locutus their path is /repos/<name>, e.g. /repos/nas.
+      - /srv/borg:/repos
+
+      # Client role: what Locutus may back up, one volume per share or
+      # directory, below /volumes. In Locutus you use these paths in the
+      # backup schedule, e.g. /volumes/photos. Read-only (:ro) is safest;
+      # restores then go to a separate writable directory such as
+      # /volumes/restore. Leave out ":ro" to restore files to their
+      # original place.
+      - /volume1/photos:/volumes/photos:ro
+      - /volume1/documents:/volumes/documents:ro
+      - /volume1/homes:/volumes/homes:ro
+      - /volume1/restore:/volumes/restore
+    environment:
+      # Time zone for the log.
+      TZ: Europe/Amsterdam
+
+      # The management key of this container: in Locutus, open a system with
+      # location "Locutus client" and this host and port, click "Generate
+      # management key" and copy the line that Locutus shows. Locutus only
+      # uses this key to push the configuration of the container.
+      LOCUTUS_MANAGER_KEY: ssh-ed25519 AAAA... locutus-manager
+
+      # ── Optional ─────────────────────────────────────────────────────────
+      # The IP addresses or networks Locutus connects from (separate several
+      # with commas). The management key then only works from there, and so
+      # do the prune keys. Without it, the management key works from
+      # anywhere and the prune keys from the address Locutus last pushed the
+      # configuration from.
+      #LOCUTUS_MANAGER_FROM: 192.0.2.10
+      # Ids of the user borg, who owns the repositories (default 1000).
+      #LOCUTUS_BORG_UID: 1000
+      #LOCUTUS_BORG_GID: 1000

@@ -2,13 +2,14 @@ services:
   locutus:
     build:
       context: .
+      target: locutus
       # Optional: set the build number explicitly, default is the git commit.
       #args:
       #  BUILD: abcde
     image: itmon.nl/locutus
     container_name: locutus
     ports:
-      - "3000:3000"
+      - "2224:2224"
     volumes:
       # Host path where the data (SQLite database, secret key, SSH known_hosts,
       # borg cache) is stored.
@@ -29,7 +30,7 @@ services:
     environment:
       - LOCUTUS_DATA_DIR=/data
       #- LOCUTUS_DB_PATH=/data/locutus.db          # default: $LOCUTUS_DATA_DIR/locutus.db
-      - LOCUTUS_LISTEN_ADDR=:3000
+      - LOCUTUS_LISTEN_ADDR=:2224
       # Time zone used for schedules and dates.
       - TZ=Europe/Amsterdam
       # HTTPS: set LOCUTUS_TLS_CERT and LOCUTUS_TLS_KEY to enable TLS. Without them plain HTTP is used.

@@ -58,6 +58,9 @@ func NewService(opts Options) (*Service, error) {
 	return &Service{opts: opts, hostKeys: hk, trees: newTreeCache(4, 15*time.Minute)}, nil
 }
 
+// HostKeys returns the SSH host keys of the repositories and clients.
+func (s *Service) HostKeys() *remote.HostKeys { return s.hostKeys }
+
 // Error is returned when borg exits with an error code.
 type Error struct {
 	Code   int
