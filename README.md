@@ -2,6 +2,9 @@
 
 > *Sero locutus, cito paenituit.*
 
+## Note
+Locutus is currenty being tested. So far it has been working great at a small site with different backup schedules etc. The SAML connection is completely untested! OIDC has been tested but also in a limited scope. Again, backups and restores work great and I found no issues. That said; testing is key!
+
 Locutus is a web interface for [BorgBackup](https://www.borgbackup.org/). It lets you manage your
 backups from the browser:
 
