@@ -14,6 +14,9 @@ backups from the browser:
 Locutus runs as a single Docker container on amd64 and arm64 and works with borg 1.x. The
 interface is available in English and Dutch.
 
+## Note
+Locutus is currenty being tested. So far it has been working great at a small site with different backup schedules etc. The SAML connection is completely untested! OIDC has been tested but also in a limited scope. Again, backups and restores work great and I found no issues. That said; testing is key!
+
 ## Contents
 
 1. [How Locutus works](#how-locutus-works)
