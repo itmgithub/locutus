@@ -57,7 +57,7 @@ You need [`docker-compose.yml`](docker-compose.yml) from this directory.
 To build and push the image for amd64 and arm64, run this in the root of the repository:
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 --target client \
+docker buildx build --platform linux/amd64,linux/arm64 --pull --build-arg PACKAGES_DATE=$(date +%F) --target client \
     -t registry.example.com/locutus-client:v1.2 --push .
 ```
 
@@ -256,7 +256,7 @@ Check on the client that the file is in the restore directory, below its origina
 
 Update the client container together with Locutus, to the same version: the wrapper in the
 container must know the commands of Locutus. Get the new image in the same way as in step 1.1
-(pull it from your registry, load the new image file, or `git pull` and `docker compose build`)
+(pull it from your registry, load the new image file, or `git pull` and `PACKAGES_DATE=$(date +%F) docker compose build`)
 and run `docker compose up -d`. The host key, the configuration from Locutus, the repositories
 and the borg cache are kept.
 

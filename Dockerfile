@@ -25,21 +25,31 @@ FROM --platform=$BUILDPLATFORM golang:${GO_VERSION}-alpine AS builder
 
 WORKDIR /app
 
-# git is needed to determine the build number (short commit id)
-RUN apk add --no-cache git
-
+# Only what the build needs, so that other changes in the directory (such as
+# the image files of build.sh) do not rebuild the binaries. The Go caches are
+# kept between builds, so a change only compiles the packages it affects.
 COPY go.mod go.sum ./
-RUN go mod download
-
-COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY main.go ./
+COPY cmd ./cmd
+COPY internal ./internal
+# For the build number: the current commit, without the rest of .git (which
+# changes with every git command). The wildcards allow a build without .git.
+COPY .gi[t]/HEA[D] .gi[t]/packed-ref[s] ./.git/
+COPY .gi[t]/ref[s]/head[s] ./.git/refs/heads/
 
 # Build number: the BUILD build-arg when given, otherwise the first 5
 # characters of the current git commit. The version is in internal/version.
 ARG BUILD=""
 ARG TARGETOS
 ARG TARGETARCH
-RUN git config --global --add safe.directory /app && \
-    BUILD="${BUILD:-$(git rev-parse --short=5 HEAD 2>/dev/null || echo dev)}" && \
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    commit="$(cat .git/HEAD 2>/dev/null)" && \
+    case "${commit}" in \
+        "ref: "*) ref="${commit#ref: }" && \
+                  commit="$(cat ".git/${ref}" 2>/dev/null || sed -n "s| ${ref}\$||p" .git/packed-refs 2>/dev/null)" ;; \
+    esac && \
+    BUILD="${BUILD:-$(echo "${commit}" | cut -c1-5)}" && BUILD="${BUILD:-dev}" && \
     echo "Building Locutus build ${BUILD} for ${TARGETOS}/${TARGETARCH}" && \
     export CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} && \
     LDFLAGS="-s -w -X itmon.nl/locutus/internal/version.Build=${BUILD}" && \
@@ -50,15 +60,25 @@ RUN git config --global --add safe.directory /app && \
 FROM --platform=$BUILDPLATFORM alpine:${ALPINE_VERSION} AS rootfs-base
 COPY docker/mkrootfs.sh /usr/local/bin/mkrootfs
 
+# The Alpine packages below are installed again when PACKAGES_DATE changes,
+# instead of being taken from the build cache. build.sh sets it to the date of
+# today, so the first build of a day gets the latest security fixes and later
+# builds that day reuse them. Without it, rebuilding the images would keep the
+# packages of the first build.
+ARG PACKAGES_DATE=""
+RUN echo "${PACKAGES_DATE}" > /etc/packages-date
+
 # Packages tagged "@edge" come from Alpine edge (see docker/mkrootfs.sh)
 # because the stable release has no fix yet for their known CVEs:
 #   * sqlite-libs >= 3.54.0 (heap overflows / use-after-free in FTS3/FTS5,
 #     R-Tree, session extension; via python3);
 #   * openssh >= 10.6 (CVE-2026-1065xx);
 #   * py3-msgpack >= 1.2.1 (CVE-2026-57585, CVE-2026-114613) and the
-#     borgbackup build that accepts it.
-# Drop the tags once the next stable Alpine release ships these versions.
-ARG EDGE_PACKAGES="sqlite-libs@edge py3-msgpack@edge borgbackup@edge"
+#     borgbackup build that accepts it;
+#   * musl >= 1.2.6-r6 (CVE-2026-107891, regcomp);
+#   * sudo >= 1.9.17_p2-r4 (CVE-2026-96512; client only).
+# Drop the tags once the stable Alpine release ships these versions.
+ARG EDGE_PACKAGES="musl@edge musl-utils@edge sqlite-libs@edge py3-msgpack@edge borgbackup@edge"
 
 FROM rootfs-base AS rootfs-locutus
 ARG TARGETARCH
@@ -71,7 +91,7 @@ FROM rootfs-base AS rootfs-client
 ARG TARGETARCH
 ARG EDGE_PACKAGES
 RUN mkrootfs ca-certificates-bundle tzdata openssh-server@edge openssh-client-default@edge ${EDGE_PACKAGES} \
-        sudo tar coreutils findutils
+        sudo@edge tar coreutils findutils
 
 # ── Locutus client image ──────────────────────────────────────────────────────
 FROM scratch AS client

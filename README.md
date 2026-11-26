@@ -14,9 +14,6 @@ backups from the browser:
 Locutus runs as a single Docker container on amd64 and arm64 and works with borg 1.x. The
 interface is available in English and Dutch.
 
-## Note
-Locutus is currenty being tested. So far it has been working great at a small site with different backup schedules etc. The SAML connection is completely untested! OIDC has been tested but also in a limited scope. Again, backups and restores work great and I found no issues. That said; testing is key!
-
 ## Contents
 
 1. [How Locutus works](#how-locutus-works)
@@ -84,7 +81,9 @@ of your browser. The version and build number are shown at the bottom of every p
 
 ### Updating
 
-Get the new version and start again with `docker compose up -d --build`. With a new version, also
+Get the new version and start again with `PACKAGES_DATE=$(date +%F) docker compose up -d --build`.
+`PACKAGES_DATE` makes Docker install the latest Alpine packages, with their security fixes, once
+a day instead of reusing those of an earlier build. With a new version, also
 check whether the [wrapper on the clients](#5-optional-install-the-locutus-wrapper) needs to be updated.
 
 Within a major version you can update directly from any earlier version, for example from v1.0
@@ -132,9 +131,9 @@ itself, and the [Locutus client container](#the-locutus-client-container) (the `
 of the same Dockerfile). Both have the same version, set in `internal/version/version.go`:
 
 ```sh
-docker buildx build --platform linux/amd64,linux/arm64 \
+docker buildx build --platform linux/amd64,linux/arm64 --pull --build-arg PACKAGES_DATE=$(date +%F) \
     -t registry.example.com/locutus:v1.2 --push .
-docker buildx build --platform linux/amd64,linux/arm64 --target client \
+docker buildx build --platform linux/amd64,linux/arm64 --pull --build-arg PACKAGES_DATE=$(date +%F) --target client \
     -t registry.example.com/locutus-client:v1.2 --push .
 ```
 

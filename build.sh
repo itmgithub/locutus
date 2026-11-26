@@ -13,6 +13,10 @@
 #   -p PREFIX  image name prefix (default: itmon.nl)
 #   -b BUILD   build number (default: the start of the git commit)
 #
+# The base images are pulled again (--pull) and the Alpine packages are
+# installed again at the first build of a day (PACKAGES_DATE, see the
+# Dockerfile), so a new build has the latest security fixes.
+#
 # Every image is tagged "latest" and with the version from
 # internal/version/version.go, for example itmon.nl/locutus-client:v1.2.
 # The files are called <image>-<arch>.tar, for example locutus-client-arm64.tar.
@@ -67,8 +71,8 @@ for target in $targets; do
     for arch in $arches; do
         file="$outdir/$image-$arch.tar"
         echo "==> $prefix/$image:$version for linux/$arch -> $file"
-        docker buildx build --platform "linux/$arch" --target "$target" \
-            --build-arg "BUILD=$build" \
+        docker buildx build --platform "linux/$arch" --target "$target" --pull \
+            --build-arg "BUILD=$build" --build-arg "PACKAGES_DATE=$(date -u +%F)" \
             -t "$prefix/$image:latest" -t "$prefix/$image:$version" \
             -o "type=docker,dest=$file" .
     done

@@ -9,9 +9,13 @@ services:
     build:
       context: ..
       target: client
-      # Optional: set the build number explicitly, default is the git commit.
-      #args:
-      #  BUILD: abcde
+      args:
+        # Set to the date of today to install the latest Alpine packages
+        # (security fixes) instead of those of an earlier build:
+        #   PACKAGES_DATE=$(date +%F) docker compose up -d --build
+        PACKAGES_DATE: ${PACKAGES_DATE:-}
+        # Optional: set the build number explicitly, default is the git commit.
+        #BUILD: abcde
     image: itmon.nl/locutus-client
     container_name: locutus-client
     # A small init process as PID 1, which cleans up finished processes.
